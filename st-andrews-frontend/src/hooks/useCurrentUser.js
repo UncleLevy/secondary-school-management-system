@@ -9,5 +9,11 @@ export function useCurrentUser() {
     retry: false,
   });
 
-  return { user: data, isLoading, isAdmin: data?.role === "admin" };
+  return {
+    user: data,
+    isLoading,
+    isAdmin: data?.role === "admin",
+    // Admin and management can use Communications and SMS.
+    canManage: data?.role === "admin" || data?.role === "management",
+  };
 }
