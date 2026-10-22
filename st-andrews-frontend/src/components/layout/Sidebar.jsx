@@ -12,7 +12,8 @@ import {
   Menu,
   X,
   CalendarDays,
-  SquareUserRound
+  SquareUserRound,
+  MessageSquare
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/api/apiClient";
@@ -29,11 +30,13 @@ const navItems = [
 
 export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
   const location = useLocation();
-  const { isAdmin } = useCurrentUser();
+  const { isAdmin, canManage } = useCurrentUser();
 
-  const items = isAdmin
-    ? [...navItems, { label: "Teachers", path: "/teachers", icon: SquareUserRound }]
-    : navItems;
+  const items = [
+    ...navItems,
+    ...(canManage ? [{ label: "SMS", path: "/sms", icon: MessageSquare }] : []),
+    ...(isAdmin ? [{ label: "Teachers", path: "/teachers", icon: SquareUserRound }] : []),
+  ];
 
   return (
     <>

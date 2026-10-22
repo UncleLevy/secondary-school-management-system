@@ -7,6 +7,7 @@ from attendance.views import AttendanceViewSet
 from results.views import ExamResultViewSet
 from communications.views import ParentMessageViewSet
 from timetable.views import TimetableSlotViewSet
+from sms.views import SMSViewSet
 from users.views import MeView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
@@ -18,6 +19,7 @@ router.register(r'attendance',         AttendanceViewSet, basename='attendance')
 router.register(r'results',            ExamResultViewSet, basename='examresult')
 router.register(r'communications',     ParentMessageViewSet)
 router.register(r'timetable',          TimetableSlotViewSet, basename='timetableslot')
+router.register(r'sms',                SMSViewSet, basename='sms')
 
 urlpatterns = [
     path('admin/', admin.site.urls),

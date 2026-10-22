@@ -12,6 +12,7 @@ import Reports from '@/pages/Reports';
 import StudentProfile from '@/pages/StudentProfile';
 import Timetable from '@/pages/Timetable';
 import Teachers from '@/pages/Teachers';
+import SMS from '@/pages/SMS';
 import Login from '@/pages/Login';
 
 const AuthGuard = ({ children }) => {
@@ -39,6 +40,7 @@ const AppContent = () => {
         <Route path="/students/:id" element={<StudentProfile />} />
         <Route path="/timetable" element={<Timetable />} />
         <Route path="/teachers" element={<Teachers />} />
+        <Route path="/sms" element={<SMS />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>

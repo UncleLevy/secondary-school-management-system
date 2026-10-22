@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { entities } from "@/api/apiClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, CalendarDays, AlertCircle, X, Check } from "lucide-react";
+import { Plus, Pencil, Trash2, CalendarDays, AlertCircle, X, Check, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,18 +13,9 @@ import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/utils";
 import PageHeader from "@/components/shared/PageHeader";
 import Loader from "@/components/shared/Loader";
+import { SCHOOL_DAYS, PERIODS } from "@/lib/timetable";
 
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-const PERIODS = [
-  { period: 1, start: "07:30", end: "08:15" },
-  { period: 2, start: "08:15", end: "09:00" },
-  { period: 3, start: "09:00", end: "09:45" },
-  { period: 4, start: "10:00", end: "10:45" },
-  { period: 5, start: "10:45", end: "11:30" },
-  { period: 6, start: "11:30", end: "12:15" },
-  { period: 7, start: "13:00", end: "13:45" },
-  { period: 8, start: "13:45", end: "14:30" },
-];
+const DAYS = SCHOOL_DAYS;
 
 const SUBJECTS = [
   "Mathematics", "English", "Science", "Social Studies", "ICT",
@@ -42,6 +33,12 @@ const SUBJECT_COLORS = {
   "Physical Education": "bg-lime-100 text-lime-800 border-lime-200",
   "Home Economics": "bg-rose-100 text-rose-800 border-rose-200",
   "French": "bg-indigo-100 text-indigo-800 border-indigo-200",
+};
+
+const CLASH_LABELS = {
+  teacher: { icon: "👤", label: "Teacher" },
+  room: { icon: "🏫", label: "Room" },
+  class: { icon: "👥", label: "Class" },
 };
 
 const DEFAULT_FORM = {
@@ -82,49 +79,49 @@ export default function Timetable() {
   const uniqueTeachers = useMemo(() =>
     [...new Set(slots.map(s => s.teacher_name).filter(Boolean))].sort(), [slots]);
 
+  // Clashes already present in the saved timetable (teacher, room or class double-booked).
+  const { data: clashData } = useQuery({
+    queryKey: ["timetable-clashes"],
+    queryFn: () => entities.TimetableSlot.clashes(),
+  });
+  const allConflicts = clashData?.clashes ?? [];
+
+  const refreshTimetable = () => {
+    queryClient.invalidateQueries({ queryKey: ["timetable"] });
+    queryClient.invalidateQueries({ queryKey: ["timetable-clashes"] });
+  };
+
   const createMutation = useMutation({
     mutationFn: (data) => entities.TimetableSlot.create(data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["timetable"] }); setDialogOpen(false); toast.success("Slot created"); },
+    onSuccess: () => { refreshTimetable(); setDialogOpen(false); toast.success("Slot created"); },
     onError: (error) => toast.error(getErrorMessage(error, "Failed to create slot")),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => entities.TimetableSlot.update(id, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["timetable"] }); setDialogOpen(false); setEditingSlot(null); toast.success("Slot updated"); },
+    onSuccess: () => { refreshTimetable(); setDialogOpen(false); setEditingSlot(null); toast.success("Slot updated"); },
     onError: (error) => toast.error(getErrorMessage(error, "Failed to update slot")),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => entities.TimetableSlot.delete(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["timetable"] }); toast.success("Slot removed"); },
+    onSuccess: () => { refreshTimetable(); toast.success("Slot removed"); },
     onError: (error) => toast.error(getErrorMessage(error, "Failed to remove slot")),
   });
 
-  // Detect conflicts: same teacher + same day + same period OR same room + same day + same period
-  function detectConflicts(allSlots, pending = null) {
-    const check = pending ? [...allSlots.filter(s => s.id !== pending.id), pending] : allSlots;
-    const found = [];
-    check.forEach((a, i) => {
-      check.slice(i + 1).forEach(b => {
-        if (a.day !== b.day || a.period !== b.period) return;
-        if (a.teacher_name && b.teacher_name && a.teacher_name === b.teacher_name) {
-          found.push({ type: "teacher", name: a.teacher_name, day: a.day, period: a.period });
-        }
-        if (a.room && b.room && a.room === b.room) {
-          found.push({ type: "room", name: a.room, day: a.day, period: a.period });
-        }
-      });
-    });
-    return found;
-  }
+  const isSlotConflicted = (slot) => allConflicts.some(c => c.slot_ids.includes(slot.id));
 
-  const allConflicts = useMemo(() => detectConflicts(slots), [slots]);
-
-  const isSlotConflicted = (slot) => allConflicts.some(c =>
-    c.day === slot.day && c.period === slot.period &&
-    ((c.type === "teacher" && c.name === slot.teacher_name) ||
-      (c.type === "room" && c.name === slot.room))
-  );
+  // Live warning: as the form changes, ask the backend whether this slot would clash.
+  useEffect(() => {
+    if (!dialogOpen) return;
+    const { day, period, teacher_name, room, grade, section } = form;
+    const timer = setTimeout(() => {
+      entities.TimetableSlot.checkClash({ id: editingSlot?.id, day, period, teacher_name, room, grade, section })
+        .then(res => setConflicts(res.clashes))
+        .catch(() => setConflicts([]));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [dialogOpen, editingSlot, form.day, form.period, form.teacher_name, form.room, form.grade, form.section]);
 
   const openCreate = (day, period) => {
     const p = PERIODS.find(p => p.period === period);
@@ -146,10 +143,8 @@ export default function Timetable() {
       toast.error("Subject, teacher, and grade are required");
       return;
     }
-    const pendingSlot = { ...form, id: editingSlot?.id || "__new__" };
-    const detected = detectConflicts(slots, pendingSlot);
-    if (detected.length > 0) {
-      setConflicts(detected);
+    if (conflicts.length > 0) {
+      toast.error("Resolve the clash before saving this slot");
       return;
     }
     const p = PERIODS.find(p => p.period === form.period);
@@ -173,8 +168,15 @@ export default function Timetable() {
 
   if (isLoading) return <Loader label="Loading timetable…" />;
 
+  // What the printed sheet is about, e.g. "Grade 8 · Section A" or "Mr Banda".
+  const printTitle = viewMode === "teacher"
+    ? (filterTeacher === "all" ? "All teachers" : filterTeacher)
+    : [filterGrade === "all" ? "All classes" : filterGrade, filterSection !== "all" && `Section ${filterSection}`].filter(Boolean).join(" · ");
+
   return (
     <div>
+      <PrintableTimetable title={printTitle} slots={viewSlots} />
+      <div className="print:hidden">
       <PageHeader
         title="Class Timetable"
         description={`${slots.length} scheduled slots · ${allConflicts.length > 0 ? `${allConflicts.length} conflict(s) detected` : "No conflicts"}`}
@@ -185,6 +187,9 @@ export default function Timetable() {
                 <AlertCircle className="w-3 h-3" /> {allConflicts.length} Conflict{allConflicts.length > 1 ? "s" : ""}
               </Badge>
             )}
+            <Button variant="outline" onClick={() => window.print()} disabled={viewSlots.length === 0} className="gap-2">
+              <Printer className="w-4 h-4" /> Print
+            </Button>
             <Button onClick={() => openCreate("Monday", 1)} className="gap-2">
               <Plus className="w-4 h-4" /> Add Slot
             </Button>
@@ -244,7 +249,8 @@ export default function Timetable() {
                 <ul className="space-y-0.5">
                   {allConflicts.map((c, i) => (
                     <li key={i} className="text-xs text-rose-700">
-                      {c.type === "teacher" ? "👤" : "🏫"} <strong>{c.name}</strong> is double-booked on <strong>{c.day}</strong>, Period <strong>{c.period}</strong>
+                      {CLASH_LABELS[c.type].icon} {CLASH_LABELS[c.type].label} <strong>{c.name}</strong> is double-booked on <strong>{c.day}</strong>, Period <strong>{c.period}</strong>
+                      {" "}({c.slots.map(s => s.subject).join(" and ")})
                     </li>
                   ))}
                 </ul>
@@ -322,14 +328,12 @@ export default function Timetable() {
           </DialogHeader>
 
           {conflicts.length > 0 && (
-            <div className="p-3 border rounded-lg border-rose-200 bg-rose-50">
-              <p className="flex items-center gap-1 mb-1 text-xs font-semibold text-rose-800">
-                <AlertCircle className="w-3.5 h-3.5" /> Conflict Detected — cannot save
+            <div className="p-3 border rounded-lg border-amber-300 bg-amber-50" role="alert">
+              <p className="flex items-center gap-1 mb-1 text-xs font-semibold text-amber-900">
+                <AlertCircle className="w-3.5 h-3.5" /> Clash warning — change the slot to save it
               </p>
               {conflicts.map((c, i) => (
-                <p key={i} className="text-xs text-rose-700">
-                  {c.type === "teacher" ? "Teacher" : "Room"} <strong>{c.name}</strong> already assigned on {c.day}, Period {c.period}
-                </p>
+                <p key={i} className="text-xs text-amber-800">{c.message}</p>
               ))}
             </div>
           )}
@@ -406,12 +410,51 @@ export default function Timetable() {
 
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} className="gap-2" disabled={createMutation.isPending || updateMutation.isPending}>
+            <Button onClick={handleSave} className="gap-2" disabled={createMutation.isPending || updateMutation.isPending || conflicts.length > 0}>
               <Check className="w-4 h-4" /> {editingSlot ? "Update" : "Create"} Slot
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </div>
+    </div>
+  );
+}
+// Print-only sheet: hidden on screen, shown (alone) when the browser prints.
+// Cells list every lesson in the slot, so "All teachers" / "All classes" prints fully.
+function PrintableTimetable({ title, slots }) {
+  const generated = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  return (
+    <div className="hidden print-sheet print:block">
+      <h1 className="text-xl font-bold">St Andrews Secondary School — Class Timetable</h1>
+      <p className="mb-3 text-sm">{title} · Printed {generated}</p>
+      <table className="w-full text-xs border-collapse">
+        <thead>
+          <tr>
+            <th className="w-24 p-1.5 text-left border border-black">Period</th>
+            {DAYS.map(day => <th key={day} className="p-1.5 text-left border border-black">{day}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {PERIODS.map(p => (
+            <tr key={p.period} style={{ breakInside: "avoid" }}>
+              <td className="p-1.5 align-top border border-black">
+                <strong>P{p.period}</strong><br />{p.start}–{p.end}
+              </td>
+              {DAYS.map(day => (
+                <td key={day} className="p-1.5 align-top border border-black">
+                  {slots.filter(s => s.day === day && s.period === p.period).map(s => (
+                    <div key={s.id} className="mb-1">
+                      <strong>{s.subject}</strong><br />
+                      {[s.teacher_name, s.grade && `${s.grade}${s.section ? `-${s.section}` : ""}`, s.room].filter(Boolean).join(" · ")}
+                    </div>
+                  ))}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

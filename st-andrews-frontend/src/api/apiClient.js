@@ -82,6 +82,16 @@ api.interceptors.response.use(
           create: (data)     => api.post('/timetable/', data).then(r => r.data),
           update: (id, data) => api.patch(`/timetable/${id}/`, data).then(r => r.data),
           delete: (id)       => api.delete(`/timetable/${id}/`),
+          // Clash warnings are computed by the backend so the rules live in one place.
+          checkClash: (data) => api.post('/timetable/check-clash/', data).then(r => r.data),
+          clashes:    ()     => api.get('/timetable/clashes/').then(r => r.data),
+      },
+      SMS: {
+          status:           ()     => api.get('/sms/status/').then(r => r.data),
+          list:             ()     => api.get('/sms/').then(r => r.data.results || r.data),
+          send:             (data) => api.post('/sms/send/', data).then(r => r.data),
+          sendTimetable:    (data) => api.post('/sms/send-timetable/', data).then(r => r.data),
+          sendClashAlerts:  ()     => api.post('/sms/send-clash-alerts/').then(r => r.data),
       },
   };
 
