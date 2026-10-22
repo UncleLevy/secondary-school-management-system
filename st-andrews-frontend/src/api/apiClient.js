@@ -82,6 +82,9 @@ api.interceptors.response.use(
           create: (data)     => api.post('/timetable/', data).then(r => r.data),
           update: (id, data) => api.patch(`/timetable/${id}/`, data).then(r => r.data),
           delete: (id)       => api.delete(`/timetable/${id}/`),
+          // Clash warnings are computed by the backend so the rules live in one place.
+          checkClash: (data) => api.post('/timetable/check-clash/', data).then(r => r.data),
+          clashes:    ()     => api.get('/timetable/clashes/').then(r => r.data),
       },
   };
 
