@@ -68,6 +68,11 @@ export default function Timetable() {
     queryFn: () => entities.Student.list(),
   });
 
+  const { data: teachers = [] } = useQuery({
+    queryKey: ["teachers"],
+    queryFn: () => entities.Teacher.list(),
+  });
+
   const uniqueGrades = useMemo(() =>
     [...new Set(students.map(s => s.grade).filter(Boolean))].sort((a, b) =>
       parseInt(a.replace("Grade ", "")) - parseInt(b.replace("Grade ", ""))
@@ -76,8 +81,17 @@ export default function Timetable() {
   const uniqueSections = useMemo(() =>
     [...new Set(students.map(s => s.section).filter(Boolean))].sort(), [students]);
 
+  // Teachers come from the database (active only). A name already on a saved slot
+  // but missing from the list (renamed/removed teacher) is kept so old slots still edit cleanly.
+  const teacherOptions = useMemo(() => {
+    const names = new Set(teachers.filter(t => t.status === "Active").map(t => t.full_name).filter(Boolean));
+    if (form.teacher_name) names.add(form.teacher_name);
+    return [...names].sort();
+  }, [teachers, form.teacher_name]);
+
   const uniqueTeachers = useMemo(() =>
-    [...new Set(slots.map(s => s.teacher_name).filter(Boolean))].sort(), [slots]);
+    [...new Set([...teachers.map(t => t.full_name), ...slots.map(s => s.teacher_name)].filter(Boolean))].sort(),
+    [teachers, slots]);
 
   // Clashes already present in the saved timetable (teacher, room or class double-booked).
   const { data: clashData } = useQuery({
@@ -368,8 +382,15 @@ export default function Timetable() {
               </Select>
             </div>
             <div className="space-y-1.5 col-span-2">
-              <Label>Teacher Name <span className="text-rose-500">*</span></Label>
-              <Input placeholder="e.g. Mr. John Banda" value={form.teacher_name} onChange={e => setForm(f => ({ ...f, teacher_name: e.target.value }))} />
+              <Label>Teacher <span className="text-rose-500">*</span></Label>
+              <Select value={form.teacher_name} onValueChange={v => setForm(f => ({ ...f, teacher_name: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select teacher" /></SelectTrigger>
+                <SelectContent>
+                  {teacherOptions.length === 0
+                    ? <div className="px-2 py-3 text-xs text-muted-foreground">No active teachers. Add one on the Teachers page.</div>
+                    : teacherOptions.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label>Grade <span className="text-rose-500">*</span></Label>
