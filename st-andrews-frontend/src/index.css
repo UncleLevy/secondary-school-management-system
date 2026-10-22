@@ -86,3 +86,10 @@
     @apply bg-background text-foreground font-inter;
   }
 }
+/* Timetable printing: only the .print-sheet is shown, on landscape A4. */
+@media print {
+  @page { size: A4 landscape; margin: 12mm; }
+  body * { visibility: hidden; }
+  .print-sheet, .print-sheet * { visibility: visible; }
+  .print-sheet { position: absolute; left: 0; top: 0; width: 100%; color: #000; background: #fff; }
+}

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { entities } from "@/api/apiClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, CalendarDays, AlertCircle, X, Check } from "lucide-react";
+import { Plus, Pencil, Trash2, CalendarDays, AlertCircle, X, Check, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -168,8 +168,15 @@ export default function Timetable() {
 
   if (isLoading) return <Loader label="Loading timetable…" />;
 
+  // What the printed sheet is about, e.g. "Grade 8 · Section A" or "Mr Banda".
+  const printTitle = viewMode === "teacher"
+    ? (filterTeacher === "all" ? "All teachers" : filterTeacher)
+    : [filterGrade === "all" ? "All classes" : filterGrade, filterSection !== "all" && `Section ${filterSection}`].filter(Boolean).join(" · ");
+
   return (
     <div>
+      <PrintableTimetable title={printTitle} slots={viewSlots} />
+      <div className="print:hidden">
       <PageHeader
         title="Class Timetable"
         description={`${slots.length} scheduled slots · ${allConflicts.length > 0 ? `${allConflicts.length} conflict(s) detected` : "No conflicts"}`}
@@ -180,6 +187,9 @@ export default function Timetable() {
                 <AlertCircle className="w-3 h-3" /> {allConflicts.length} Conflict{allConflicts.length > 1 ? "s" : ""}
               </Badge>
             )}
+            <Button variant="outline" onClick={() => window.print()} disabled={viewSlots.length === 0} className="gap-2">
+              <Printer className="w-4 h-4" /> Print
+            </Button>
             <Button onClick={() => openCreate("Monday", 1)} className="gap-2">
               <Plus className="w-4 h-4" /> Add Slot
             </Button>
@@ -406,6 +416,45 @@ export default function Timetable() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </div>
+    </div>
+  );
+}
+// Print-only sheet: hidden on screen, shown (alone) when the browser prints.
+// Cells list every lesson in the slot, so "All teachers" / "All classes" prints fully.
+function PrintableTimetable({ title, slots }) {
+  const generated = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  return (
+    <div className="hidden print-sheet print:block">
+      <h1 className="text-xl font-bold">St Andrews Secondary School — Class Timetable</h1>
+      <p className="mb-3 text-sm">{title} · Printed {generated}</p>
+      <table className="w-full text-xs border-collapse">
+        <thead>
+          <tr>
+            <th className="w-24 p-1.5 text-left border border-black">Period</th>
+            {DAYS.map(day => <th key={day} className="p-1.5 text-left border border-black">{day}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {PERIODS.map(p => (
+            <tr key={p.period} style={{ breakInside: "avoid" }}>
+              <td className="p-1.5 align-top border border-black">
+                <strong>P{p.period}</strong><br />{p.start}–{p.end}
+              </td>
+              {DAYS.map(day => (
+                <td key={day} className="p-1.5 align-top border border-black">
+                  {slots.filter(s => s.day === day && s.period === p.period).map(s => (
+                    <div key={s.id} className="mb-1">
+                      <strong>{s.subject}</strong><br />
+                      {[s.teacher_name, s.grade && `${s.grade}${s.section ? `-${s.section}` : ""}`, s.room].filter(Boolean).join(" · ")}
+                    </div>
+                  ))}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
