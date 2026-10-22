@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'attendance',
     'results',
     'communications',
+    'sms',
     'timetable',
     'users',
 ]
@@ -113,6 +114,14 @@ CORS_ALLOWED_ORIGINS = [
 # Email (used by communications app to notify guardians via Resend)
 RESEND_API_KEY = config('RESEND_API_KEY', default='')
 EMAIL_FROM = config('EMAIL_FROM', default='no-reply@st-andrews.local')
+
+# SMS (Twilio) — leave blank until you have credentials; the app works without them.
+TWILIO_ACCOUNT_SID = config('TWILIO_ACCOUNT_SID', default='')
+TWILIO_AUTH_TOKEN = config('TWILIO_AUTH_TOKEN', default='')
+TWILIO_FROM_NUMBER = config('TWILIO_FROM_NUMBER', default='')
+TWILIO_MESSAGING_SERVICE_SID = config('TWILIO_MESSAGING_SERVICE_SID', default='')
+# Local numbers such as 0971234567 are converted using this country code (260 = Zambia).
+SMS_DEFAULT_COUNTRY_CODE = config('SMS_DEFAULT_COUNTRY_CODE', default='260')
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
