@@ -13,18 +13,9 @@ import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/utils";
 import PageHeader from "@/components/shared/PageHeader";
 import Loader from "@/components/shared/Loader";
+import { SCHOOL_DAYS, PERIODS } from "@/lib/timetable";
 
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-const PERIODS = [
-  { period: 1, start: "07:30", end: "08:15" },
-  { period: 2, start: "08:15", end: "09:00" },
-  { period: 3, start: "09:00", end: "09:45" },
-  { period: 4, start: "10:00", end: "10:45" },
-  { period: 5, start: "10:45", end: "11:30" },
-  { period: 6, start: "11:30", end: "12:15" },
-  { period: 7, start: "13:00", end: "13:45" },
-  { period: 8, start: "13:45", end: "14:30" },
-];
+const DAYS = SCHOOL_DAYS;
 
 const SUBJECTS = [
   "Mathematics", "English", "Science", "Social Studies", "ICT",

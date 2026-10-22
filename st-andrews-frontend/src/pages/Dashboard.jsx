@@ -1,178 +1,225 @@
-import React from "react";
+import React, { useMemo } from "react";
+import { Link } from "react-router-dom";
 import { entities } from "@/api/apiClient";
 import { useQuery } from "@tanstack/react-query";
-import { Users, CalendarCheck, FileText, AlertTriangle, TrendingUp } from "lucide-react";
+import { CalendarDays, Users, School, AlertTriangle, CheckCircle2, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from "recharts";
+import { Button } from "@/components/ui/button";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import StatCard from "@/components/dashboard/StatCard";
 import TodaySchedule from "@/components/dashboard/TodaySchedule";
 import PageHeader from "@/components/shared/PageHeader";
+import Loader from "@/components/shared/Loader";
+import { SCHOOL_DAYS, WEEKLY_PERIODS, classLabel } from "@/lib/timetable";
 
-const COLORS = ["hsl(224, 76%, 48%)", "hsl(160, 60%, 45%)", "hsl(36, 100%, 50%)", "hsl(280, 65%, 60%)", "hsl(340, 75%, 55%)"];
+const COLORS = [
+  "hsl(224, 76%, 48%)", "hsl(160, 60%, 45%)", "hsl(36, 100%, 50%)", "hsl(280, 65%, 60%)",
+  "hsl(340, 75%, 55%)", "hsl(190, 70%, 42%)", "hsl(20, 85%, 55%)", "hsl(100, 45%, 45%)",
+];
+const TOOLTIP_STYLE = { borderRadius: 8, border: "1px solid hsl(220,13%,91%)", fontSize: 13 };
+const CLASH_LABELS = { teacher: "Teacher", room: "Room", class: "Class" };
+
+const countBy = (items, keyFn) => {
+  const counts = {};
+  items.forEach((item) => {
+    const key = keyFn(item);
+    if (key) counts[key] = (counts[key] || 0) + 1;
+  });
+  return counts;
+};
+
+const topEntries = (counts, limit) =>
+  Object.entries(counts).sort(([, a], [, b]) => b - a).slice(0, limit);
 
 export default function Dashboard() {
-  const { data: students = [] } = useQuery({
-    queryKey: ["students"],
-    queryFn: () => entities.Student.list(),
+  const { data: slots = [], isLoading } = useQuery({
+    queryKey: ["timetable"],
+    queryFn: () => entities.TimetableSlot.list(),
   });
 
-  const { data: attendance = [] } = useQuery({
-    queryKey: ["attendance"],
-    queryFn: () => entities.Attendance.list(),
+  const { data: clashData } = useQuery({
+    queryKey: ["timetable-clashes"],
+    queryFn: () => entities.TimetableSlot.clashes(),
   });
+  const clashes = clashData?.clashes ?? [];
 
-  const { data: results = [] } = useQuery({
-    queryKey: ["results"],
-    queryFn: () => entities.ExamResult.list(),
-  });
+  const stats = useMemo(() => {
+    const teacherLoad = countBy(slots, (s) => s.teacher_name);
+    const roomUse = countBy(slots, (s) => s.room);
+    const dayCounts = countBy(slots, (s) => s.day);
+    return {
+      teachers: Object.keys(teacherLoad).length,
+      classes: new Set(slots.map(classLabel)).size,
+      rooms: Object.keys(roomUse).length,
+      perDay: SCHOOL_DAYS.map((day) => ({ name: day.slice(0, 3), lessons: dayCounts[day] || 0 })),
+      subjects: topEntries(countBy(slots, (s) => s.subject), 8).map(([name, value]) => ({ name, value })),
+      teacherLoad: topEntries(teacherLoad, 8),
+      roomUse: topEntries(roomUse, 6),
+    };
+  }, [slots]);
 
-  const activeStudents = students.filter(s => s.status === "Active").length;
+  if (isLoading) return <Loader label="Loading dashboard…" />;
 
-  const presentCount = attendance.filter(a => a.status === "Present").length;
-  const attendanceRate = attendance.length > 0 ? ((presentCount / attendance.length) * 100).toFixed(1) : 0;
-
-  const avgScore = results.length > 0
-    ? (results.reduce((sum, r) => sum + (r.score || 0), 0) / results.length).toFixed(1)
-    : 0;
-
-  const atRiskCount = (() => {
-    const studentScores = {};
-    results.forEach(r => {
-      if (!studentScores[r.student_id]) studentScores[r.student_id] = [];
-      studentScores[r.student_id].push(r.score);
-    });
-    return Object.values(studentScores).filter(scores => {
-      const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
-      return avg < 50;
-    }).length;
-  })();
-
-  // Grade distribution data
-  const gradeDistribution = (() => {
-    const counts = {};
-    students.forEach(s => {
-      if (s.grade) counts[s.grade] = (counts[s.grade] || 0) + 1;
-    });
-    return Object.entries(counts)
-      .sort(([a], [b]) => {
-        const numA = parseInt(a.replace("Grade ", ""));
-        const numB = parseInt(b.replace("Grade ", ""));
-        return numA - numB;
-      })
-      .map(([name, count]) => ({ name: name.replace("Grade ", "G"), count }));
-  })();
-
-  // Subject performance data
-  const subjectPerformance = (() => {
-    const subjects = {};
-    results.forEach(r => {
-      if (!subjects[r.subject]) subjects[r.subject] = [];
-      subjects[r.subject].push(r.score);
-    });
-    return Object.entries(subjects).map(([subject, scores]) => ({
-      subject: subject.length > 8 ? subject.slice(0, 8) + "." : subject,
-      average: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length),
-    }));
-  })();
-
-  // Gender distribution
-  const genderData = (() => {
-    const male = students.filter(s => s.gender === "Male").length;
-    const female = students.filter(s => s.gender === "Female").length;
-    return [
-      { name: "Male", value: male },
-      { name: "Female", value: female },
-    ].filter(d => d.value > 0);
-  })();
+  const hasClashes = clashes.length > 0;
 
   return (
     <div>
       <PageHeader
-        title="Dashboard"
-        description="Academic performance analytics overview"
+        title="Timetable Dashboard"
+        description="Weekly teaching schedule overview"
+        actions={
+          <Button asChild className="gap-2">
+            <Link to="/timetable"><CalendarDays className="w-4 h-4" /> Open Timetable</Link>
+          </Button>
+        }
       />
 
       {/* Stats */}
       <div className="grid grid-cols-1 gap-4 mb-8 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Total Students" value={activeStudents} icon={Users} color="blue" trend={5.2} trendLabel="this term" />
-        <StatCard title="Attendance Rate" value={`${attendanceRate}%`} icon={CalendarCheck} color="green" />
-        {/*<StatCard title="Average Score" value={`${avgScore}%`} icon={TrendingUp} color="amber" />
-        <StatCard title="At-Risk Students" value={atRiskCount} icon={AlertTriangle} color="rose" />*/}
+        <StatCard title="Lessons per Week" value={slots.length} icon={CalendarDays} color="blue" />
+        <StatCard title="Teachers Scheduled" value={stats.teachers} icon={Users} color="green" />
+        <StatCard title="Classes Scheduled" value={stats.classes} icon={School} color="amber" />
+        <StatCard
+          title="Timetable Clashes"
+          value={clashes.length}
+          icon={hasClashes ? AlertTriangle : CheckCircle2}
+          color={hasClashes ? "rose" : "green"}
+        />
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 gap-6 mb-6 lg:grid-cols-3">
-        {/* Grade Distribution */}
-        <Card className="border-0 shadow-sm lg:col-span-2">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold">Students by Grade</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {gradeDistribution.length > 0 ? (
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={gradeDistribution}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(220, 13%, 91%)" />
-                  <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid hsl(220,13%,91%)", fontSize: 13 }} />
-                  <Bar dataKey="count" fill="hsl(224, 76%, 48%)" radius={[6, 6, 0, 0]} barSize={32} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <p className="py-12 text-sm text-center text-muted-foreground">No student data yet</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Gender Pie */}
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold">Gender Distribution</CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-center justify-center">
-            {genderData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={260}>
-                <PieChart>
-                  <Pie data={genderData} cx="50%" cy="50%" innerRadius={55} outerRadius={85} dataKey="value" stroke="none" paddingAngle={4}>
-                    {genderData.map((_, i) => (
-                      <Cell key={i} fill={COLORS[i]} />
+      {/* Clash status */}
+      {hasClashes ? (
+        <Card className="mb-6 border shadow-none border-rose-200 bg-rose-50">
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="mb-1 text-sm font-semibold text-rose-800">
+                    {clashes.length === 1 ? "1 timetable clash needs" : `${clashes.length} timetable clashes need`} attention
+                  </p>
+                  <ul className="space-y-0.5">
+                    {clashes.slice(0, 5).map((c, i) => (
+                      <li key={i} className="text-xs text-rose-700">
+                        {CLASH_LABELS[c.type]} <strong>{c.name}</strong> is double-booked on {c.day}, Period {c.period}
+                        {" "}({c.slots.map((s) => s.subject).join(" and ")})
+                      </li>
                     ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid hsl(220,13%,91%)", fontSize: 13 }} />
-                  <Legend verticalAlign="bottom" iconType="circle" wrapperStyle={{ fontSize: 13 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <p className="py-12 text-sm text-center text-muted-foreground">No data</p>
-            )}
+                    {clashes.length > 5 && (
+                      <li className="text-xs text-rose-700">…and {clashes.length - 5} more</li>
+                    )}
+                  </ul>
+                </div>
+              </div>
+              <Button asChild variant="outline" size="sm" className="gap-1 bg-white">
+                <Link to="/timetable">Review clashes <ArrowRight className="w-3.5 h-3.5" /></Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
+      ) : slots.length > 0 && (
+        <Card className="mb-6 border shadow-none border-emerald-200 bg-emerald-50">
+          <CardContent className="flex items-center gap-2 p-4 text-sm font-medium text-emerald-800">
+            <CheckCircle2 className="w-4 h-4" /> No clashes — every teacher, room and class is booked at most once per period.
+          </CardContent>
+        </Card>
+      )}
+
+      {slots.length === 0 ? (
+        <Card className="border-0 shadow-sm">
+          <CardContent className="py-16 text-center">
+            <CalendarDays className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
+            <p className="font-semibold">No timetable yet</p>
+            <p className="mt-1 mb-4 text-sm text-muted-foreground">Add lessons on the Timetable page and the weekly overview will appear here.</p>
+            <Button asChild><Link to="/timetable">Build the timetable</Link></Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* Charts Row */}
+          <div className="grid grid-cols-1 gap-6 mb-6 lg:grid-cols-3">
+            <Card className="border-0 shadow-sm lg:col-span-2">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold">Lessons per Day</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={stats.perDay}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(220, 13%, 91%)" />
+                    <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={TOOLTIP_STYLE} />
+                    <Bar dataKey="lessons" name="Lessons" fill="hsl(224, 76%, 48%)" radius={[6, 6, 0, 0]} barSize={32} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold">Lessons by Subject</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={260}>
+                  <PieChart>
+                    <Pie data={stats.subjects} cx="50%" cy="45%" innerRadius={50} outerRadius={80} dataKey="value" stroke="none" paddingAngle={2}>
+                      {stats.subjects.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip contentStyle={TOOLTIP_STYLE} />
+                    <Legend verticalAlign="bottom" iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Workload + rooms */}
+          <div className="grid grid-cols-1 gap-6 mb-6 lg:grid-cols-2">
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold">Teacher Workload</CardTitle>
+                <p className="text-xs text-muted-foreground">Lessons per week, out of {WEEKLY_PERIODS} periods</p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {stats.teacherLoad.map(([name, count]) => (
+                  <UsageBar key={name} label={name} count={count} />
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold">Room Usage</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  {stats.rooms > 0 ? `Periods booked per week, out of ${WEEKLY_PERIODS}` : "No rooms assigned yet"}
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {stats.roomUse.map(([name, count]) => (
+                  <UsageBar key={name} label={name} count={count} color="bg-emerald-500" />
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+
+          <TodaySchedule />
+        </>
+      )}
+    </div>
+  );
+}
+
+function UsageBar({ label, count, color = "bg-primary" }) {
+  const percent = Math.min(100, Math.round((count / WEEKLY_PERIODS) * 100));
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1 text-sm">
+        <span className="font-medium truncate">{label}</span>
+        <span className="text-xs text-muted-foreground shrink-0">{count} · {percent}%</span>
       </div>
-
-      {/* Today's Schedule */}
-      <TodaySchedule />
-
-      {/* Subject Performance 
-      <Card className="mt-6 border-0 shadow-sm">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-semibold">Average Score by Subject</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {subjectPerformance.length > 0 ? (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={subjectPerformance} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(220, 13%, 91%)" />
-                <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="subject" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} width={80} />
-                <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid hsl(220,13%,91%)", fontSize: 13 }} />
-                <Bar dataKey="average" fill="hsl(160, 60%, 45%)" radius={[0, 6, 6, 0]} barSize={20} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <p className="py-12 text-sm text-center text-muted-foreground">No exam results yet</p>
-          )}
-        </CardContent>
-      </Card>*/}
+      <div className="h-2 overflow-hidden rounded-full bg-muted">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${percent}%` }} />
+      </div>
     </div>
   );
 }
