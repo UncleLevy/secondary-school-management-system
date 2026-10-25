@@ -4,7 +4,7 @@ rem Adds a shortcut to your Startup folder (no administrator rights needed).
 setlocal
 set "TARGET=%~dp0start-system.bat"
 set "WD=%~dp0"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=[Environment]::GetFolderPath('Startup')+'\School Timetable System.lnk'; $s=(New-Object -ComObject WScript.Shell).CreateShortcut($p); $s.TargetPath=$env:TARGET; $s.Arguments='autostart'; $s.WorkingDirectory=$env:WD; $s.WindowStyle=7; $s.Save(); Write-Host ('Created: ' + $p)"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=[Environment]::GetFolderPath('Startup')+'\Secondary School Timetable.lnk'; $s=(New-Object -ComObject WScript.Shell).CreateShortcut($p); $s.TargetPath=$env:TARGET; $s.Arguments='autostart'; $s.WorkingDirectory=$env:WD; $s.WindowStyle=7; $s.Save(); Write-Host ('Created: ' + $p)"
 if errorlevel 1 (
   echo Could not create the start-up shortcut.
 ) else (

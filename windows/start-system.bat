@@ -1,15 +1,15 @@
 @echo off
 rem ============================================================
-rem  School Timetable System - start Django (backend) + React (frontend)
+rem  Secondary School Timetable - start Django (backend) + React (frontend)
 rem  Usage:  start-system.bat            (opens the browser when ready)
 rem          start-system.bat autostart  (no browser; used at Windows start-up)
 rem ============================================================
 setlocal
-title School Timetable System - launcher
+title Secondary School Timetable - launcher
 
 set "ROOT=%~dp0.."
-set "BACKEND=%ROOT%\st-andrews-backend"
-set "FRONTEND=%ROOT%\st-andrews-frontend"
+set "BACKEND=%ROOT%\timetable-backend"
+set "FRONTEND=%ROOT%\timetable-frontend"
 set "BACKEND_PORT=8000"
 set "FRONTEND_PORT=5173"
 
@@ -46,7 +46,7 @@ if not exist "%BACKEND%\venv\Scripts\python.exe" (
 if not exist "%BACKEND%\.env" (
   if exist "%BACKEND%\.env.example" (
     copy "%BACKEND%\.env.example" "%BACKEND%\.env" >nul
-    echo [backend] Created st-andrews-backend\.env from .env.example - edit it to add your settings ^(e.g. Twilio keys^).
+    echo [backend] Created timetable-backend\.env from .env.example - edit it to add your settings ^(e.g. Twilio keys^).
   )
 )
 
@@ -74,8 +74,8 @@ if not exist "%FRONTEND%\node_modules" (
 
 rem ---------- Launch both servers (minimised windows; close them to stop) ----------
 echo Starting backend on port %BACKEND_PORT% and frontend on port %FRONTEND_PORT%...
-start "School Timetable - Backend" /min /d "%BACKEND%" cmd /k venv\Scripts\python.exe manage.py runserver %BACKEND_PORT% --noreload
-start "School Timetable - Frontend" /min /d "%FRONTEND%" cmd /k npm run dev -- --port %FRONTEND_PORT% --strictPort
+start "Secondary School Timetable - Backend" /min /d "%BACKEND%" cmd /k venv\Scripts\python.exe manage.py runserver %BACKEND_PORT% --noreload
+start "Secondary School Timetable - Frontend" /min /d "%FRONTEND%" cmd /k npm run dev -- --port %FRONTEND_PORT% --strictPort
 
 if /i not "%~1"=="autostart" (
   timeout /t 8 /nobreak >nul

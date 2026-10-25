@@ -1,11 +1,11 @@
-# School Timetable System (Frontend)
+# Secondary School Timetable (Frontend)
 
-A React + Vite + Tailwind CSS + shadcn/ui frontend for the school timetable system, talking to the Django REST backend in `st-andrews-backend`.
+A React + Vite + Tailwind CSS + shadcn/ui frontend for the school timetable system, talking to the Django REST backend in `timetable-backend`.
 
 ## Prerequisites
 
 - Node.js 18+
-- The Django backend running locally (see `st-andrews-backend/README` / `manage.py runserver`), by default at `http://localhost:8000`
+- The Django backend running locally (see `timetable-backend/README` / `manage.py runserver`), by default at `http://localhost:8000`
 
 ## Setup
 
