@@ -47,8 +47,8 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
         } ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
         {/* Logo */}
-        <div className="flex items-center h-16 gap-3 px-4 border-b border-sidebar-border shrink-0">
-          <div className="flex items-center justify-center rounded-lg w-9 h-9 bg-sidebar-primary shrink-0">
+        <div className={`flex items-center h-16 gap-3 px-4 border-b border-sidebar-border shrink-0 ${collapsed ? "md:justify-center md:px-0" : ""}`}>
+          <div className={`flex items-center justify-center rounded-lg w-9 h-9 bg-sidebar-primary shrink-0 ${collapsed ? "md:hidden" : ""}`}>
             <GraduationCap className="w-5 h-5 text-sidebar-primary-foreground" />
           </div>
           {(!collapsed || mobileOpen) && (
@@ -62,7 +62,9 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
             variant="ghost"
             size="icon"
             onClick={() => setCollapsed(!collapsed)}
-            className="hidden md:flex ml-auto text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent h-7 w-7 shrink-0"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className={`hidden md:flex text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent h-7 w-7 shrink-0 ${collapsed ? "" : "ml-auto"}`}
           >
             {collapsed ? <Menu className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </Button>
