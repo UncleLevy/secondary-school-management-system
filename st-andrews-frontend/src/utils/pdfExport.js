@@ -1,6 +1,6 @@
 import jsPDF from "jspdf";
 
-const SCHOOL_NAME = "St. Andrews High School";
+const SCHOOL_NAME = "School Timetable System";
 const SCHOOL_SUBTITLE = "Academic Management System";
 
 // Colors [R, G, B]

@@ -1,6 +1,6 @@
-# St. Andrews High School — Student Management System (Frontend)
+# School Timetable System (Frontend)
 
-A React + Vite + Tailwind CSS + shadcn/ui frontend for the St. Andrews SMS, talking to the Django REST backend in `st-andrews-backend`.
+A React + Vite + Tailwind CSS + shadcn/ui frontend for the school timetable system, talking to the Django REST backend in `st-andrews-backend`.
 
 ## Prerequisites
 

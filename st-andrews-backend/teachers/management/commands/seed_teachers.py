@@ -37,9 +37,9 @@ class Command(BaseCommand):
             last_name = random.choice(SURNAMES)
             full_name = f"{first_name} {last_name}"
             email_local = f"{first_name}.{last_name}{i}".lower()
-            email = f"{email_local}@standrews.sch.zm"
+            email = f"{email_local}@school.example"
             while email in used_emails:
-                email = f"{email_local}{random.randint(1,999)}@standrews.sch.zm"
+                email = f"{email_local}{random.randint(1,999)}@school.example"
             used_emails.add(email)
 
             phone = f"+260{random.choice(PHONE_PREFIXES)}{random.randint(1000000, 9999999)}"
