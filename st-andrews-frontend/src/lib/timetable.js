@@ -18,3 +18,6 @@ export const WEEKLY_PERIODS = SCHOOL_DAYS.length * PERIODS.length;
 
 export const classLabel = (slot) =>
   `${slot.grade}${slot.section ? `-${slot.section}` : ""}`;
+
+export const GRADES = Array.from({ length: 12 }, (_, i) => `Grade ${i + 1}`);
+export const SECTIONS = ["A", "B", "C", "D"];

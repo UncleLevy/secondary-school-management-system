@@ -5,8 +5,6 @@ from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, override_settings
 from rest_framework.test import APITestCase
 
-from communications.models import ParentMessage
-from students.models import Student
 from teachers.models import Teacher
 from timetable.models import TimetableSlot
 
@@ -230,46 +228,3 @@ class SmsApiTests(APITestCase):
         SMSLog.objects.create(phone='+1', body='old', status='Sent')
         SMSLog.objects.create(phone='+2', body='new', status='Sent')
         self.assertEqual([r['body'] for r in self.client.get('/api/sms/').json()], ['new', 'old'])
-
-
-@override_settings(**TWILIO)
-class ParentMessageSmsTests(APITestCase):
-    def setUp(self):
-        self.admin = User.objects.create_user('admin1', password='pw', role='admin')
-        self.client.force_authenticate(self.admin)
-        self.student = Student.objects.create(first_name='A', last_name='B', gender='Male', grade='Grade 8',
-                                              guardian_name='Mrs. B', guardian_phone='0973333333')
-
-    def message(self, **kw):
-        data = dict(student=self.student, student_name='A B', channel='SMS', message_type='General Notice',
-                    subject='Notice', body='<p>School closes early</p>')
-        data.update(kw)
-        return ParentMessage.objects.create(**data)
-
-    def test_sms_channel_really_sends_to_the_guardian_phone(self):
-        msg = self.message()
-        client = fake_client()
-        with patch.object(service, '_client', return_value=client):
-            res = self.client.post(f'/api/communications/{msg.id}/send/')
-        self.assertEqual(res.status_code, 200)
-        client.messages.create.assert_called_once_with(to='+260973333333', body='School closes early',
-                                                       from_='+15005550006')
-        msg.refresh_from_db()
-        self.assertEqual(msg.status, 'Sent')
-        self.assertEqual(SMSLog.objects.get().kind, 'Parent Message')
-
-    def test_sms_channel_fails_honestly_without_credentials(self):
-        msg = self.message()
-        with override_settings(**NO_TWILIO):
-            res = self.client.post(f'/api/communications/{msg.id}/send/')
-        self.assertEqual(res.status_code, 500)
-        msg.refresh_from_db()
-        self.assertEqual(msg.status, 'Failed')
-
-    def test_sms_channel_without_guardian_phone_fails(self):
-        self.student.guardian_phone = ''
-        self.student.save()
-        msg = self.message()
-        res = self.client.post(f'/api/communications/{msg.id}/send/')
-        self.assertEqual(res.status_code, 500)
-        self.assertIn('no guardian phone', res.json()['error'])

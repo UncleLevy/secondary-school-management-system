@@ -5,11 +5,6 @@ import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-route
 import PageNotFound from './lib/PageNotFound';
 import AppLayout from '@/components/layout/AppLayout';
 import Dashboard from '@/pages/Dashboard';
-import Students from '@/pages/Students';
-import Attendance from '@/pages/Attendance';
-import Results from '@/pages/Results';
-import Reports from '@/pages/Reports';
-import StudentProfile from '@/pages/StudentProfile';
 import Timetable from '@/pages/Timetable';
 import Teachers from '@/pages/Teachers';
 import SMS from '@/pages/SMS';
@@ -33,11 +28,6 @@ const AppContent = () => {
       <Route path="/login" element={<Login />} />
       <Route element={<AppLayout />}>
         <Route path="/" element={<Dashboard />} />
-        <Route path="/students" element={<Students />} />
-        <Route path="/attendance" element={<Attendance />} />
-        <Route path="/results" element={<Results />} />
-        <Route path="/reports" element={<Reports />} />
-        <Route path="/students/:id" element={<StudentProfile />} />
         <Route path="/timetable" element={<Timetable />} />
         <Route path="/teachers" element={<Teachers />} />
         <Route path="/sms" element={<SMS />} />

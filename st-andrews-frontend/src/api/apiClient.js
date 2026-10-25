@@ -51,32 +51,6 @@ api.interceptors.response.use(
           create: (data)     => api.post('/class-assignments/', data).then(r => r.data),
           delete: (id)       => api.delete(`/class-assignments/${id}/`),
       },
-      Student: {
-          list:       (ordering = '-created_at') => api.get(`/students/?ordering=${ordering}`).then(r => r.data.results || r.data),
-          get:        (id)        => api.get(`/students/${id}/`).then(r => r.data),
-          create:     (data)      => api.post('/students/', data).then(r => r.data),
-          update:     (id, data)  => api.patch(`/students/${id}/`, data).then(r => r.data),
-          delete:     (id)        => api.delete(`/students/${id}/`),
-          filter:     (params)    => api.get('/students/', { params }).then(r => r.data.results || r.data),
-      },
-      Attendance: {
-          list:       ()          => api.get('/attendance/').then(r => r.data.results || r.data),
-          bulkCreate: (records)   => Promise.all(records.map(r => api.post('/attendance/', r).then(x => x.data))),
-          filter:     (params)    => api.get('/attendance/', { params }).then(r => r.data.results || r.data),
-      },
-      ExamResult: {
-          list:   (ordering = '-created_at') => api.get(`/results/?ordering=${ordering}`).then(r => r.data.results || r.data),
-          create: (data)     => api.post('/results/', data).then(r => r.data),
-          update: (id, data) => api.patch(`/results/${id}/`, data).then(r => r.data),
-          delete: (id)       => api.delete(`/results/${id}/`),
-          filter: (params)   => api.get('/results/', { params }).then(r => r.data.results || r.data),
-      },
-      ParentMessage: {
-          list:   (ordering = '-created_at') => api.get(`/communications/?ordering=${ordering}`).then(r => r.data.results || r.data),
-          create: (data)     => api.post('/communications/', data).then(r => r.data),
-          filter: (params)   => api.get('/communications/', { params }).then(r => r.data.results || r.data),
-          send:   (id)       => api.post(`/communications/${id}/send/`).then(r => r.data),
-      },
       TimetableSlot: {
           list:   () => api.get('/timetable/').then(r => r.data.results || r.data),
           create: (data)     => api.post('/timetable/', data).then(r => r.data),

@@ -2,10 +2,6 @@ import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
-  Users,
-  CalendarCheck,
-  FileText,
-  BarChart3,
   GraduationCap,
   LogOut,
   ChevronLeft,
@@ -21,10 +17,6 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 const navItems = [
   { label: "Dashboard", path: "/", icon: LayoutDashboard },
-  { label: "Students", path: "/students", icon: Users },
-  { label: "Attendance", path: "/attendance", icon: CalendarCheck },
-  //{ label: "Exam Results", path: "/results", icon: FileText },
-  //{ label: "Reports", path: "/reports", icon: BarChart3 },
   { label: "Timetable", path: "/timetable", icon: CalendarDays },
 ];
 

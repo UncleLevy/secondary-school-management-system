@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { entities } from "@/api/apiClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, CalendarDays, AlertCircle, X, Check, Printer } from "lucide-react";
+import { Plus, AlertCircle, X, Check, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/utils";
 import PageHeader from "@/components/shared/PageHeader";
 import Loader from "@/components/shared/Loader";
-import { SCHOOL_DAYS, PERIODS } from "@/lib/timetable";
+import { SCHOOL_DAYS, PERIODS, GRADES, SECTIONS } from "@/lib/timetable";
 
 const DAYS = SCHOOL_DAYS;
 
@@ -63,23 +63,17 @@ export default function Timetable() {
     queryFn: () => entities.TimetableSlot.list(),
   });
 
-  const { data: students = [] } = useQuery({
-    queryKey: ["students"],
-    queryFn: () => entities.Student.list(),
-  });
-
   const { data: teachers = [] } = useQuery({
     queryKey: ["teachers"],
     queryFn: () => entities.Teacher.list(),
   });
 
+  // Filter options: only the grades/sections that actually have lessons.
   const uniqueGrades = useMemo(() =>
-    [...new Set(students.map(s => s.grade).filter(Boolean))].sort((a, b) =>
-      parseInt(a.replace("Grade ", "")) - parseInt(b.replace("Grade ", ""))
-    ), [students]);
+    GRADES.filter(g => slots.some(s => s.grade === g)), [slots]);
 
   const uniqueSections = useMemo(() =>
-    [...new Set(students.map(s => s.section).filter(Boolean))].sort(), [students]);
+    SECTIONS.filter(sec => slots.some(s => s.section === sec)), [slots]);
 
   // Teachers come from the database (active only). A name already on a saved slot
   // but missing from the list (renamed/removed teacher) is kept so old slots still edit cleanly.
@@ -397,19 +391,7 @@ export default function Timetable() {
               <Select value={form.grade} onValueChange={v => setForm(f => ({ ...f, grade: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select grade" /></SelectTrigger>
                 <SelectContent>
-                  {uniqueGrades.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
-                  <SelectItem value="Grade 1">Grade 1</SelectItem>
-                  <SelectItem value="Grade 2">Grade 2</SelectItem>
-                  <SelectItem value="Grade 3">Grade 3</SelectItem>
-                  <SelectItem value="Grade 4">Grade 4</SelectItem>
-                  <SelectItem value="Grade 5">Grade 5</SelectItem>
-                  <SelectItem value="Grade 6">Grade 6</SelectItem>
-                  <SelectItem value="Grade 7">Grade 7</SelectItem>
-                  <SelectItem value="Grade 8">Grade 8</SelectItem>
-                  <SelectItem value="Grade 9">Grade 9</SelectItem>
-                  <SelectItem value="Grade 10">Grade 10</SelectItem>
-                  <SelectItem value="Grade 11">Grade 11</SelectItem>
-                  <SelectItem value="Grade 12">Grade 12</SelectItem>
+                  {GRADES.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -419,7 +401,7 @@ export default function Timetable() {
                 <SelectTrigger><SelectValue placeholder="Optional" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">None</SelectItem>
-                  {["A", "B", "C", "D"].map(s => <SelectItem key={s} value={s}>Section {s}</SelectItem>)}
+                  {SECTIONS.map(s => <SelectItem key={s} value={s}>Section {s}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
