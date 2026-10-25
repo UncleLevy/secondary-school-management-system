@@ -441,41 +441,80 @@ export default function Timetable() {
     </div>
   );
 }
-// Print-only sheet: hidden on screen, shown (alone) when the browser prints.
+// Colours for the printed sheet: [tint, accent] per subject (CSS can't use the Tailwind classes above in print).
+const PRINT_COLORS = {
+  "Mathematics": ["#e0ecff", "#2563eb"], "English": ["#f0e5ff", "#7c3aed"],
+  "Science": ["#dcf5e8", "#059669"], "Social Studies": ["#fff0cc", "#d97706"],
+  "ICT": ["#d9f3f8", "#0891b2"], "Religious Education": ["#ffe6d2", "#ea580c"],
+  "Creative Arts": ["#fde2ee", "#db2777"], "Physical Education": ["#eaf6cf", "#65a30d"],
+  "Home Economics": ["#ffe0e3", "#e11d48"], "French": ["#e3e7ff", "#4f46e5"],
+};
+const printColors = (subject) => PRINT_COLORS[subject] || ["#eef1f5", "#64748b"];
+
+// Print-only sheet: hidden on screen, shown (alone) when the browser prints. Styled by .print-sheet in index.css.
 // Cells list every lesson in the slot, so "All teachers" / "All classes" prints fully.
 function PrintableTimetable({ title, slots }) {
-  const generated = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const printed = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const subjectsUsed = [...new Set(slots.map(s => s.subject).filter(Boolean))].sort();
+  const teachers = new Set(slots.map(s => s.teacher_name).filter(Boolean)).size;
   return (
     <div className="hidden print-sheet print:block">
-      <h1 className="text-xl font-bold">St Andrews Secondary School — Class Timetable</h1>
-      <p className="mb-3 text-sm">{title} · Printed {generated}</p>
-      <table className="w-full text-xs border-collapse">
+      <header className="pt-header">
+        <div>
+          <p className="pt-eyebrow">St Andrews Secondary School</p>
+          <h1 className="pt-title">Class Timetable</h1>
+        </div>
+        <div className="pt-meta">
+          <span className="pt-chip">{title}</span>
+          <p>{slots.length} lesson{slots.length === 1 ? "" : "s"} · {teachers} teacher{teachers === 1 ? "" : "s"}</p>
+        </div>
+      </header>
+
+      <table className="pt-table">
         <thead>
           <tr>
-            <th className="w-24 p-1.5 text-left border border-black">Period</th>
-            {DAYS.map(day => <th key={day} className="p-1.5 text-left border border-black">{day}</th>)}
+            <th className="pt-period-head">Period</th>
+            {DAYS.map(day => <th key={day}>{day}</th>)}
           </tr>
         </thead>
         <tbody>
           {PERIODS.map(p => (
-            <tr key={p.period} style={{ breakInside: "avoid" }}>
-              <td className="p-1.5 align-top border border-black">
-                <strong>P{p.period}</strong><br />{p.start}–{p.end}
-              </td>
-              {DAYS.map(day => (
-                <td key={day} className="p-1.5 align-top border border-black">
-                  {slots.filter(s => s.day === day && s.period === p.period).map(s => (
-                    <div key={s.id} className="mb-1">
-                      <strong>{s.subject}</strong><br />
-                      {[s.teacher_name, s.grade && `${s.grade}${s.section ? `-${s.section}` : ""}`, s.room].filter(Boolean).join(" · ")}
-                    </div>
-                  ))}
+            <React.Fragment key={p.period}>
+              {p.period === 4 && <tr className="pt-break"><td colSpan={DAYS.length + 1}>Break</td></tr>}
+              {p.period === 7 && <tr className="pt-break"><td colSpan={DAYS.length + 1}>Lunch</td></tr>}
+              <tr>
+                <td className="pt-period">
+                  <strong>P{p.period}</strong>
+                  <span>{p.start}–{p.end}</span>
                 </td>
-              ))}
-            </tr>
+                {DAYS.map(day => (
+                  <td key={day}>
+                    {slots.filter(s => s.day === day && s.period === p.period).map(s => {
+                      const [tint, accent] = printColors(s.subject);
+                      return (
+                        <div key={s.id} className="pt-lesson" style={{ background: tint, borderLeftColor: accent }}>
+                          <strong style={{ color: accent }}>{s.subject}</strong>
+                          <span>{s.teacher_name}</span>
+                          <span className="pt-sub">{[s.grade && `${s.grade}${s.section ? `-${s.section}` : ""}`, s.room].filter(Boolean).join(" · ")}</span>
+                        </div>
+                      );
+                    })}
+                  </td>
+                ))}
+              </tr>
+            </React.Fragment>
           ))}
         </tbody>
       </table>
+
+      <footer className="pt-footer">
+        <div className="pt-legend">
+          {subjectsUsed.map(subject => (
+            <span key={subject}><i style={{ background: printColors(subject)[1] }} />{subject}</span>
+          ))}
+        </div>
+        <p>Printed {printed}</p>
+      </footer>
     </div>
   );
 }
