@@ -461,7 +461,7 @@ function PrintableTimetable({ title, slots }) {
     <div className="hidden print-sheet print:block">
       <header className="pt-header">
         <div>
-          <p className="pt-eyebrow">St Andrews Secondary School</p>
+          <p className="pt-eyebrow">School Timetable</p>
           <h1 className="pt-title">Class Timetable</h1>
         </div>
         <div className="pt-meta">

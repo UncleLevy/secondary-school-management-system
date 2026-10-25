@@ -22,7 +22,7 @@ def timetable_message(teacher_name, day):
         when = f"P{s.period}" + (f" {s.start_time}" if s.start_time else '')
         where = f" ({s.room})" if s.room else ''
         lessons.append(f"{when} {s.subject} {class_label(s.grade, s.section)}{where}")
-    return f"St Andrews timetable for {day}: " + '; '.join(lessons)
+    return f"Timetable for {day}: " + '; '.join(lessons)
 
 
 def clash_alert_messages():
@@ -36,7 +36,7 @@ def clash_alert_messages():
             if text not in per_teacher[norm(slot['teacher_name'])]:
                 per_teacher[norm(slot['teacher_name'])].append(text)
     return {
-        name: "St Andrews timetable clash: " + '; '.join(lines)
+        name: "Timetable clash: " + '; '.join(lines)
               + ". Please contact the timetable office."
         for name, lines in per_teacher.items() if name
     }

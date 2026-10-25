@@ -61,8 +61,8 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
           </div>
           {(!collapsed || mobileOpen) && (
             <div className="overflow-hidden">
-              <h1 className="text-sm font-bold tracking-tight truncate">St. Andrews</h1>
-              <p className="text-[10px] text-sidebar-foreground/60 uppercase tracking-widest">High School</p>
+              <h1 className="text-sm font-bold tracking-tight truncate">Timetable</h1>
+              <p className="text-[10px] text-sidebar-foreground/60 uppercase tracking-widest">School System</p>
             </div>
           )}
           {/* Desktop collapse toggle */}

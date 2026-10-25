@@ -181,7 +181,7 @@ class SmsApiTests(APITestCase):
         reasons = {s['recipient']: s['reason'] for s in body['skipped']}
         self.assertEqual(reasons, {'Mrs. Zulu': 'No valid phone number'})
         banda_text = SMSLog.objects.get(recipient_name='Mr. Banda').body
-        self.assertEqual(banda_text, 'St Andrews timetable for Monday: P1 07:30 Mathematics Grade 8-A (Room 1); '
+        self.assertEqual(banda_text, 'Timetable for Monday: P1 07:30 Mathematics Grade 8-A (Room 1); '
                                      'P3 09:00 English Grade 9-B')
         self.assertNotIn('Science', banda_text)
         self.assertEqual(SMSLog.objects.get(recipient_name='Mr. Banda').kind, 'Timetable')

@@ -29,7 +29,7 @@ export default function AppLayout() {
           <div className="flex items-center justify-center w-7 h-7 rounded-md bg-primary shrink-0">
             <GraduationCap className="w-4 h-4 text-primary-foreground" />
           </div>
-          <span className="text-sm font-bold tracking-tight">St. Andrews</span>
+          <span className="text-sm font-bold tracking-tight">Timetable</span>
         </div>
       </header>
 

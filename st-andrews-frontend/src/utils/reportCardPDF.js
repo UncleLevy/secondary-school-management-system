@@ -1,6 +1,6 @@
 import jsPDF from "jspdf";
 
-const SCHOOL_NAME = "St. Andrews High School";
+const SCHOOL_NAME = "School Timetable System";
 const SCHOOL_SUBTITLE = "Academic Management System";
 const PRIMARY = [30, 64, 175];
 const PRIMARY_LIGHT = [239, 246, 255];

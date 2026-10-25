@@ -113,7 +113,7 @@ CORS_ALLOWED_ORIGINS = [
 
 # Email (used by communications app to notify guardians via Resend)
 RESEND_API_KEY = config('RESEND_API_KEY', default='')
-EMAIL_FROM = config('EMAIL_FROM', default='no-reply@st-andrews.local')
+EMAIL_FROM = config('EMAIL_FROM', default='no-reply@school.local')
 
 # SMS (Twilio) — leave blank until you have credentials; the app works without them.
 TWILIO_ACCOUNT_SID = config('TWILIO_ACCOUNT_SID', default='')
