@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -9,11 +9,13 @@ import {
   X,
   CalendarDays,
   SquareUserRound,
-  MessageSquare
+  MessageSquare,
+  KeyRound
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/api/apiClient";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import ChangePasswordDialog from "@/components/layout/ChangePasswordDialog";
 
 const navItems = [
   { label: "Dashboard", path: "/", icon: LayoutDashboard },
@@ -23,6 +25,7 @@ const navItems = [
 export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
   const location = useLocation();
   const { isAdmin, canManage } = useCurrentUser();
+  const [passwordOpen, setPasswordOpen] = useState(false);
 
   const items = [
     ...navItems,
@@ -102,7 +105,14 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
         </nav>
 
         {/* Logout */}
-        <div className="p-3 border-t border-sidebar-border">
+        <div className="p-3 space-y-1 border-t border-sidebar-border">
+          <button
+            onClick={() => setPasswordOpen(true)}
+            className="flex items-center w-full gap-3 px-3 py-2.5 text-sm font-medium transition-all rounded-lg text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+          >
+            <KeyRound className="w-[18px] h-[18px] shrink-0" />
+            {(!collapsed || mobileOpen) && <span>Change Password</span>}
+          </button>
           <button
             onClick={() => auth.logout()}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all w-full`}
@@ -112,6 +122,7 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
           </button>
         </div>
       </aside>
+      <ChangePasswordDialog open={passwordOpen} onOpenChange={setPasswordOpen} />
     </>
   );
 }

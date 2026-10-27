@@ -4,7 +4,7 @@ from rest_framework.routers import DefaultRouter
 from teachers.views import TeacherViewSet, ClassAssignmentViewSet
 from timetable.views import TimetableSlotViewSet
 from sms.views import SMSViewSet
-from users.views import MeView
+from users.views import MeView, ChangePasswordView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 router = DefaultRouter()
@@ -19,4 +19,5 @@ urlpatterns = [
     path('api/auth/login/',   TokenObtainPairView.as_view()),
     path('api/auth/refresh/', TokenRefreshView.as_view()),
     path('api/auth/me/',      MeView.as_view()),
+    path('api/auth/change-password/', ChangePasswordView.as_view()),
 ]
