@@ -59,6 +59,7 @@ api.interceptors.response.use(
           // Clash warnings are computed by the backend so the rules live in one place.
           checkClash: (data) => api.post('/timetable/check-clash/', data).then(r => r.data),
           clashes:    ()     => api.get('/timetable/clashes/').then(r => r.data),
+          mySchedule: ()     => api.get('/timetable/my-schedule/').then(r => r.data),
       },
       SMS: {
           status:           ()     => api.get('/sms/status/').then(r => r.data),

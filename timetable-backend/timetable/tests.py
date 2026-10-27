@@ -153,3 +153,41 @@ class TimetableApiTests(APITestCase):
         self.client.force_authenticate(self.teacher)
         res = self.client.post('/api/timetable/', self.payload, format='json')
         self.assertEqual(res.status_code, 403)
+
+
+class MyScheduleTests(APITestCase):
+    URL = '/api/timetable/my-schedule/'
+
+    def setUp(self):
+        from teachers.models import Teacher
+        self.teacher = Teacher.objects.create(user_email='banda@school.zm', full_name='Mr. Banda')
+        self.mine = make_slot(teacher_name='mr. banda ')
+        make_slot(day='Tuesday', teacher_name='Ms. Phiri', room='Room 2', grade='Grade 9')
+
+    def login(self, email, role='teacher'):
+        user = User.objects.create_user(username=email, email=email, password='x', role=role)
+        self.client.force_authenticate(user)
+
+    def test_requires_login(self):
+        self.assertEqual(self.client.get(self.URL).status_code, 401)
+
+    def test_returns_only_the_teachers_own_slots(self):
+        self.login('Banda@School.zm')
+        data = self.client.get(self.URL).json()
+        self.assertTrue(data['linked'])
+        self.assertEqual(data['teacher']['full_name'], 'Mr. Banda')
+        self.assertEqual([s['id'] for s in data['slots']], [self.mine.id])
+        self.assertEqual(data['clashes'], [])
+
+    def test_unlinked_account_gets_an_empty_schedule(self):
+        self.login('nobody@school.zm')
+        data = self.client.get(self.URL).json()
+        self.assertFalse(data['linked'])
+        self.assertEqual(data['slots'], [])
+
+    def test_own_clash_is_reported_but_not_other_teachers(self):
+        make_slot(teacher_name='Mr. Banda', room='Room 7', grade='Grade 10')
+        make_slot(day='Tuesday', teacher_name='Ms. Phiri', room='Room 2', grade='Grade 11')
+        self.login('banda@school.zm')
+        clashes = self.client.get(self.URL).json()['clashes']
+        self.assertEqual([c['name'].strip().lower() for c in clashes], ['mr. banda'])
