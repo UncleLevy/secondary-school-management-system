@@ -44,6 +44,10 @@ api.interceptors.response.use(
           create: (data)     => api.post('/teachers/', data).then(r => r.data),
           update: (id, data) => api.patch(`/teachers/${id}/`, data).then(r => r.data),
           delete: (id)       => api.delete(`/teachers/${id}/`),
+          createAccount:   (id, password) => api.post(`/teachers/${id}/create-account/`, { password }).then(r => r.data),
+          resetPassword:   (id, password) => api.post(`/teachers/${id}/reset-password/`, { password }).then(r => r.data),
+          setAccountActive:(id, active)   => api.post(`/teachers/${id}/set-account-active/`, { active }).then(r => r.data),
+          deleteAccount:   (id)           => api.delete(`/teachers/${id}/account/`).then(r => r.data),
       },
       ClassAssignment: {
           list:   ()         => api.get('/class-assignments/').then(r => r.data.results || r.data),
@@ -77,6 +81,8 @@ api.interceptors.response.use(
           localStorage.setItem('refresh_token', data.refresh);
           return data;
       },
+      changePassword: (current_password, new_password) =>
+          api.post('/auth/change-password/', { current_password, new_password }).then(r => r.data),
       logout: () => {
           localStorage.removeItem('access_token');
           localStorage.removeItem('refresh_token');

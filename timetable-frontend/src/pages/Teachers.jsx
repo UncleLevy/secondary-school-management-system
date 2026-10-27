@@ -11,6 +11,7 @@ import EmptyState from "@/components/shared/EmptyState";
 import Loader from "@/components/shared/Loader";
 import TeacherFormDialog from "@/components/teachers/TeacherFormDialog";
 import TeacherTable from "@/components/teachers/TeacherTable";
+import TeacherAccountDialog from "@/components/teachers/TeacherAccountDialog";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 export default function Teachers() {
@@ -19,6 +20,8 @@ export default function Teachers() {
   const [editingTeacher, setEditingTeacher] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [search, setSearch] = useState("");
+  const [accountDialog, setAccountDialog] = useState(null); // { teacher, mode }
+  const [removeAccountTarget, setRemoveAccountTarget] = useState(null);
 
   const queryClient = useQueryClient();
 
@@ -56,6 +59,20 @@ export default function Teachers() {
       toast.success("Teacher removed");
     },
     onError: () => toast.error("Failed to delete teacher"),
+  });
+
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ["teachers"] });
+
+  const toggleAccount = useMutation({
+    mutationFn: (t) => entities.Teacher.setAccountActive(t.id, !t.account_active),
+    onSuccess: (_, t) => { refresh(); toast.success(t.account_active ? "Login disabled" : "Login enabled"); },
+    onError: () => toast.error("Could not update the login"),
+  });
+
+  const removeAccount = useMutation({
+    mutationFn: (t) => entities.Teacher.deleteAccount(t.id),
+    onSuccess: () => { refresh(); setRemoveAccountTarget(null); toast.success("Login account removed"); },
+    onError: () => toast.error("Could not remove the login"),
   });
 
   const handleSave = (formData) => {
@@ -112,7 +129,11 @@ export default function Teachers() {
       </div>
 
       {filtered.length > 0 ? (
-        <TeacherTable teachers={filtered} canManage={canManage} onEdit={handleEdit} onDelete={setDeleteTarget} />
+        <TeacherTable teachers={filtered} canManage={canManage} onEdit={handleEdit} onDelete={setDeleteTarget}
+          onCreateAccount={(t) => setAccountDialog({ teacher: t, mode: "create" })}
+          onResetPassword={(t) => setAccountDialog({ teacher: t, mode: "reset" })}
+          onToggleAccount={(t) => toggleAccount.mutate(t)}
+          onRemoveAccount={setRemoveAccountTarget} />
       ) : (
         <EmptyState title="No teachers found" description="Add your first teacher to get started." />
       )}
@@ -124,12 +145,36 @@ export default function Teachers() {
         onSave={handleSave}
       />
 
+      <TeacherAccountDialog
+        teacher={accountDialog?.teacher}
+        mode={accountDialog?.mode}
+        onClose={() => setAccountDialog(null)}
+        onDone={refresh}
+      />
+
+      <AlertDialog open={!!removeAccountTarget} onOpenChange={() => setRemoveAccountTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove login account</AlertDialogTitle>
+            <AlertDialogDescription>
+              {removeAccountTarget?.full_name} will no longer be able to sign in. Their teacher profile and lessons stay.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => removeAccount.mutate(removeAccountTarget)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Teacher</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to remove {deleteTarget?.full_name}? This action cannot be undone.
+              Are you sure you want to remove {deleteTarget?.full_name}? Their login account (if any) is removed too. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
