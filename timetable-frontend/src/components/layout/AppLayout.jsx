@@ -1,13 +1,19 @@
 import React, { useState } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
 import { Menu, GraduationCap } from "lucide-react";
 import Sidebar from "./Sidebar";
+import { NotificationProvider } from "@/lib/notifications";
+import NotificationBell from "@/components/notifications/NotificationBell";
+import NotificationFeed from "@/components/notifications/NotificationFeed";
 
 export default function AppLayout() {
+  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
+    <NotificationProvider navigate={navigate}>
+    <NotificationFeed />
     <div className="min-h-screen bg-background">
       <Sidebar
         collapsed={collapsed}
@@ -31,13 +37,16 @@ export default function AppLayout() {
           </div>
           <span className="text-sm font-bold tracking-tight">Timetable</span>
         </div>
+        <div className="ml-auto"><NotificationBell /></div>
       </header>
 
       <main className={`transition-all duration-300 ${collapsed ? "md:ml-[68px]" : "md:ml-64"}`}>
         <div className="p-4 sm:p-6 md:p-8 max-w-[1400px] mx-auto">
+          <div className="justify-end hidden mb-2 md:flex"><NotificationBell /></div>
           <Outlet />
         </div>
       </main>
     </div>
+    </NotificationProvider>
   );
 }

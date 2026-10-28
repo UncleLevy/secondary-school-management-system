@@ -44,7 +44,7 @@ function App() {
         <AuthGuard>
           <AppContent />
         </AuthGuard>
-        <Toaster />
+        <Toaster position="bottom-right" richColors closeButton />
       </Router>
     </QueryClientProvider>
   )
