@@ -46,7 +46,7 @@ if not exist "%BACKEND%\venv\Scripts\python.exe" (
 if not exist "%BACKEND%\.env" (
   if exist "%BACKEND%\.env.example" (
     copy "%BACKEND%\.env.example" "%BACKEND%\.env" >nul
-    echo [backend] Created timetable-backend\.env from .env.example - edit it to add your settings ^(e.g. Twilio keys^).
+    echo [backend] Created timetable-backend\.env from .env.example - edit it to add your settings ^(e.g. SMS keys^).
   )
 )
 

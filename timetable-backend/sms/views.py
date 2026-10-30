@@ -36,8 +36,8 @@ def respond(results, skipped):
 
 
 def not_configured():
-    return Response({'detail': 'SMS is not configured yet. Add the Twilio credentials '
-                               'to the backend .env file.'},
+    return Response({'detail': 'SMS is not configured yet. Add the SMS provider credentials '
+                               '(AT_USERNAME and AT_API_KEY) to the backend .env file.'},
                     status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
 

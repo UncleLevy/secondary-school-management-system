@@ -13,10 +13,10 @@ from .models import SMSLog
 
 User = get_user_model()
 
-TWILIO = dict(TWILIO_ACCOUNT_SID='ACtest', TWILIO_AUTH_TOKEN='token',
+TWILIO = dict(SMS_PROVIDER='twilio', TWILIO_ACCOUNT_SID='ACtest', TWILIO_AUTH_TOKEN='token',
               TWILIO_FROM_NUMBER='+15005550006', TWILIO_MESSAGING_SERVICE_SID='',
               SMS_DEFAULT_COUNTRY_CODE='260')
-NO_TWILIO = dict(TWILIO_ACCOUNT_SID='', TWILIO_AUTH_TOKEN='', TWILIO_FROM_NUMBER='',
+NO_TWILIO = dict(SMS_PROVIDER='twilio', TWILIO_ACCOUNT_SID='', TWILIO_AUTH_TOKEN='', TWILIO_FROM_NUMBER='',
                  TWILIO_MESSAGING_SERVICE_SID='')
 
 
@@ -228,3 +228,63 @@ class SmsApiTests(APITestCase):
         SMSLog.objects.create(phone='+1', body='old', status='Sent')
         SMSLog.objects.create(phone='+2', body='new', status='Sent')
         self.assertEqual([r['body'] for r in self.client.get('/api/sms/').json()], ['new', 'old'])
+
+
+AT = dict(SMS_PROVIDER='africastalking', AT_USERNAME='myschool', AT_API_KEY='key',
+          AT_SENDER_ID='', AT_SANDBOX=False, SMS_DEFAULT_COUNTRY_CODE='260')
+
+
+def at_reply(code=101, status='Success', mid='ATXid_1'):
+    return {'SMSMessageData': {'Message': 'Sent to 1/1', 'Recipients': [
+        {'statusCode': code, 'number': '+260971234567', 'status': status, 'messageId': mid}]}}
+
+
+@override_settings(**AT)
+class AfricasTalkingTests(SimpleTestCase):
+    def test_configured_needs_username_and_key(self):
+        self.assertTrue(service.is_configured())
+        with override_settings(AT_API_KEY=''):
+            self.assertFalse(service.is_configured())
+        with override_settings(AT_USERNAME=''):
+            self.assertFalse(service.is_configured())
+
+    def test_not_configured_raises(self):
+        with override_settings(AT_API_KEY=''), self.assertRaises(service.SMSNotConfigured):
+            service.send_sms('0971234567', 'hi')
+
+    def test_sends_to_normalised_number_and_returns_message_id(self):
+        with patch.object(service, '_at_post', return_value=at_reply()) as post:
+            self.assertEqual(service.send_sms('0971234567', 'hello'), 'ATXid_1')
+        url, key, fields = post.call_args.args
+        self.assertEqual(url, service.AT_LIVE_URL)
+        self.assertEqual(key, 'key')
+        self.assertEqual(fields, {'username': 'myschool', 'to': '+260971234567', 'message': 'hello'})
+
+    def test_sender_id_is_included_when_set(self):
+        with override_settings(AT_SENDER_ID='SCHOOL'), \
+                patch.object(service, '_at_post', return_value=at_reply()) as post:
+            service.send_sms('0971234567', 'hello')
+        self.assertEqual(post.call_args.args[2]['from'], 'SCHOOL')
+
+    def test_sandbox_username_uses_sandbox_url(self):
+        with override_settings(AT_USERNAME='sandbox'), \
+                patch.object(service, '_at_post', return_value=at_reply()) as post:
+            service.send_sms('0971234567', 'hello')
+        self.assertEqual(post.call_args.args[0], service.AT_SANDBOX_URL)
+
+    def test_rejected_recipient_becomes_sms_error(self):
+        with patch.object(service, '_at_post', return_value=at_reply(403, 'InvalidPhoneNumber')):
+            with self.assertRaises(service.SMSError):
+                service.send_sms('0971234567', 'hello')
+
+    def test_empty_recipients_becomes_sms_error(self):
+        reply = {'SMSMessageData': {'Message': 'InvalidSenderId', 'Recipients': []}}
+        with patch.object(service, '_at_post', return_value=reply):
+            with self.assertRaisesMessage(service.SMSError, 'InvalidSenderId'):
+                service.send_sms('0971234567', 'hello')
+
+    def test_invalid_number_is_rejected_before_calling_provider(self):
+        with patch.object(service, '_at_post') as post:
+            with self.assertRaises(service.SMSError):
+                service.send_sms('abc', 'hello')
+        post.assert_not_called()
