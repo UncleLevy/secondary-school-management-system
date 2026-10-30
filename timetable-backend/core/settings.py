@@ -108,7 +108,13 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 
-# SMS (Twilio) — leave blank until you have credentials; the app works without them.
+# SMS — leave blank until you have credentials; the app works without them.
+# SMS_PROVIDER is "africastalking" (default) or "twilio".
+SMS_PROVIDER = config('SMS_PROVIDER', default='africastalking')
+AT_USERNAME = config('AT_USERNAME', default='')
+AT_API_KEY = config('AT_API_KEY', default='')
+AT_SENDER_ID = config('AT_SENDER_ID', default='')
+AT_SANDBOX = config('AT_SANDBOX', default=False, cast=bool)
 TWILIO_ACCOUNT_SID = config('TWILIO_ACCOUNT_SID', default='')
 TWILIO_AUTH_TOKEN = config('TWILIO_AUTH_TOKEN', default='')
 TWILIO_FROM_NUMBER = config('TWILIO_FROM_NUMBER', default='')

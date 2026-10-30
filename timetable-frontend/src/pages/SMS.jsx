@@ -114,8 +114,8 @@ export default function SMS() {
           <CardContent className="flex items-start gap-2 p-4 text-sm text-amber-900">
             <Info className="w-4 h-4 mt-0.5 shrink-0" />
             <p>
-              <strong>Twilio is not set up yet.</strong> Add <code>TWILIO_ACCOUNT_SID</code>,{" "}
-              <code>TWILIO_AUTH_TOKEN</code> and <code>TWILIO_FROM_NUMBER</code> to the backend{" "}
+              <strong>SMS is not set up yet.</strong> Add <code>AT_USERNAME</code> and{" "}
+              <code>AT_API_KEY</code> to the backend{" "}
               <code>.env</code> file and restart the server. Sending is disabled until then.
             </p>
           </CardContent>

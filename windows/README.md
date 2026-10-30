@@ -10,6 +10,6 @@ One-time requirements: **Python 3** (tick "Add python.exe to PATH") and **Node.j
 | `stop-system.bat` | Stops both servers. |
 
 Notes
-- The backend settings live in `timetable-backend\.env` (created from `.env.example` on first run). Add your Twilio keys there, then run `stop-system.bat` and `start-system.bat`.
+- The backend settings live in `timetable-backend\.env` (created from `.env.example` on first run). Add your SMS provider keys (AT_USERNAME and AT_API_KEY for Africa's Talking) there, then run `stop-system.bat` and `start-system.bat`.
 - After pulling updates that change `requirements.txt` or `package.json`, delete `timetable-backend\venv` and/or `timetable-frontend\node_modules` and start again to reinstall.
 - This runs the development servers, which is fine for a single school PC. For a shared/production setup, build the frontend (`npm run build`) and serve it with a proper web server.

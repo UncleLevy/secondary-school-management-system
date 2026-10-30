@@ -1,10 +1,15 @@
-"""Twilio SMS delivery.
+"""SMS delivery through Africa's Talking (default) or Twilio.
 
+The provider is chosen with SMS_PROVIDER ("africastalking" or "twilio").
 Credentials come from environment variables (see .env.example). Until they are
 set, `is_configured()` is False and `send_sms` raises SMSNotConfigured, so the
-rest of the app keeps working without Twilio.
+rest of the app keeps working without an SMS provider.
 """
+import json
 import re
+import urllib.error
+import urllib.parse
+import urllib.request
 
 from django.conf import settings
 
@@ -14,10 +19,26 @@ class SMSError(Exception):
 
 
 class SMSNotConfigured(SMSError):
-    """Twilio credentials have not been provided."""
+    """SMS provider credentials have not been provided."""
+
+
+AT_LIVE_URL = 'https://api.africastalking.com/version1/messaging'
+AT_SANDBOX_URL = 'https://api.sandbox.africastalking.com/version1/messaging'
+# Africa's Talking per-recipient status codes that mean the message was accepted.
+AT_OK_CODES = {100, 101, 102}
+
+
+def provider():
+    return (getattr(settings, 'SMS_PROVIDER', 'africastalking') or 'africastalking').lower()
 
 
 def is_configured():
+    if provider() == 'twilio':
+        return _twilio_configured()
+    return bool(settings.AT_API_KEY and settings.AT_USERNAME)
+
+
+def _twilio_configured():
     return bool(
         settings.TWILIO_ACCOUNT_SID
         and settings.TWILIO_AUTH_TOKEN
@@ -51,16 +72,59 @@ def _client():
     return Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
 
 
+def _at_post(url, api_key, fields):
+    """POST form fields to Africa's Talking and return the decoded JSON reply."""
+    request = urllib.request.Request(
+        url,
+        data=urllib.parse.urlencode(fields).encode(),
+        headers={'apiKey': api_key, 'Accept': 'application/json',
+                 'Content-Type': 'application/x-www-form-urlencoded'},
+        method='POST',
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            return json.loads(response.read().decode() or '{}')
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode(errors='replace')[:200]
+        raise SMSError(f'Africa\'s Talking returned HTTP {exc.code}: {detail}') from exc
+    except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+        raise SMSError(f'Could not reach Africa\'s Talking: {exc}') from exc
+
+
+def _send_africastalking(number, body):
+    username = settings.AT_USERNAME
+    sandbox = getattr(settings, 'AT_SANDBOX', False) or username == 'sandbox'
+    fields = {'username': username, 'to': number, 'message': body}
+    if settings.AT_SENDER_ID:
+        fields['from'] = settings.AT_SENDER_ID
+    data = _at_post(AT_SANDBOX_URL if sandbox else AT_LIVE_URL, settings.AT_API_KEY, fields)
+    recipients = (data.get('SMSMessageData') or {}).get('Recipients') or []
+    if not recipients:
+        message = (data.get('SMSMessageData') or {}).get('Message') or 'no recipient was accepted'
+        raise SMSError(f"Africa's Talking: {message}")
+    first = recipients[0]
+    if first.get('statusCode') not in AT_OK_CODES:
+        raise SMSError(f"Africa's Talking: {first.get('status') or 'rejected'}")
+    return first.get('messageId', '')
+
+
 def send_sms(to, body):
-    """Send one SMS and return Twilio's message SID."""
+    """Send one SMS and return the provider's message id."""
     if not is_configured():
+        if provider() == 'twilio':
+            raise SMSNotConfigured(
+                'SMS is not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and '
+                'TWILIO_FROM_NUMBER (or TWILIO_MESSAGING_SERVICE_SID) in the backend .env file.'
+            )
         raise SMSNotConfigured(
-            'SMS is not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and '
-            'TWILIO_FROM_NUMBER (or TWILIO_MESSAGING_SERVICE_SID) in the backend .env file.'
+            "SMS is not configured. Set AT_USERNAME and AT_API_KEY (Africa's Talking) "
+            'in the backend .env file.'
         )
     number = normalize_phone(to)
     if not number:
         raise SMSError(f'"{to}" is not a valid phone number.')
+    if provider() != 'twilio':
+        return _send_africastalking(number, body)
 
     params = {'to': number, 'body': body}
     if settings.TWILIO_MESSAGING_SERVICE_SID:
