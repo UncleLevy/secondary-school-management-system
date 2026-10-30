@@ -77,11 +77,21 @@ export default function Timetable() {
 
   // Teachers come from the database (active only). A name already on a saved slot
   // but missing from the list (renamed/removed teacher) is kept so old slots still edit cleanly.
+  // Once a subject is chosen, only teachers who teach that subject are offered.
+  const teachesSubject = (t, subject) => (t.subjects || []).includes(subject);
   const teacherOptions = useMemo(() => {
-    const names = new Set(teachers.filter(t => t.status === "Active").map(t => t.full_name).filter(Boolean));
+    const active = teachers.filter(t => t.status === "Active" && (!form.subject || teachesSubject(t, form.subject)));
+    const names = new Set(active.map(t => t.full_name).filter(Boolean));
     if (form.teacher_name) names.add(form.teacher_name);
     return [...names].sort();
-  }, [teachers, form.teacher_name]);
+  }, [teachers, form.teacher_name, form.subject]);
+
+  // Changing the subject drops a selected teacher who doesn't teach the new one.
+  const changeSubject = (subject) => setForm(f => {
+    const current = teachers.find(t => t.full_name === f.teacher_name);
+    const keep = !current || teachesSubject(current, subject);
+    return { ...f, subject, teacher_name: keep ? f.teacher_name : "" };
+  });
 
   const uniqueTeachers = useMemo(() =>
     [...new Set([...teachers.map(t => t.full_name), ...slots.map(s => s.teacher_name)].filter(Boolean))].sort(),
@@ -370,18 +380,20 @@ export default function Timetable() {
             </div>
             <div className="space-y-1.5 col-span-2">
               <Label>Subject <span className="text-rose-500">*</span></Label>
-              <Select value={form.subject} onValueChange={v => setForm(f => ({ ...f, subject: v }))}>
+              <Select value={form.subject} onValueChange={changeSubject}>
                 <SelectTrigger><SelectValue placeholder="Select subject" /></SelectTrigger>
                 <SelectContent>{SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5 col-span-2">
-              <Label>Teacher <span className="text-rose-500">*</span></Label>
+              <Label>Teacher <span className="text-rose-500">*</span>{form.subject && <span className="ml-1 text-xs font-normal text-muted-foreground">teaching {form.subject}</span>}</Label>
               <Select value={form.teacher_name} onValueChange={v => setForm(f => ({ ...f, teacher_name: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select teacher" /></SelectTrigger>
                 <SelectContent>
                   {teacherOptions.length === 0
-                    ? <div className="px-2 py-3 text-xs text-muted-foreground">No active teachers. Add one on the Teachers page.</div>
+                    ? <div className="px-2 py-3 text-xs text-muted-foreground">
+                        {form.subject ? `No active teacher is listed for ${form.subject}. Add it to a teacher on the Teachers page.` : "No active teachers. Add one on the Teachers page."}
+                      </div>
                     : teacherOptions.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                 </SelectContent>
               </Select>
