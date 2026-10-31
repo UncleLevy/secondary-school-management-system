@@ -13,10 +13,10 @@ from .models import SMSLog
 
 User = get_user_model()
 
-TWILIO = dict(SMS_PROVIDER='twilio', TWILIO_ACCOUNT_SID='ACtest', TWILIO_AUTH_TOKEN='token',
+TWILIO = dict(SMS_PROVIDER='twilio', SMS_FALLBACK=True, AT_USERNAME='', AT_API_KEY='', TWILIO_ACCOUNT_SID='ACtest', TWILIO_AUTH_TOKEN='token',
               TWILIO_FROM_NUMBER='+15005550006', TWILIO_MESSAGING_SERVICE_SID='',
               SMS_DEFAULT_COUNTRY_CODE='260')
-NO_TWILIO = dict(SMS_PROVIDER='twilio', TWILIO_ACCOUNT_SID='', TWILIO_AUTH_TOKEN='', TWILIO_FROM_NUMBER='',
+NO_TWILIO = dict(SMS_PROVIDER='twilio', SMS_FALLBACK=True, AT_USERNAME='', AT_API_KEY='', TWILIO_ACCOUNT_SID='', TWILIO_AUTH_TOKEN='', TWILIO_FROM_NUMBER='',
                  TWILIO_MESSAGING_SERVICE_SID='')
 
 
@@ -230,7 +230,8 @@ class SmsApiTests(APITestCase):
         self.assertEqual([r['body'] for r in self.client.get('/api/sms/').json()], ['new', 'old'])
 
 
-AT = dict(SMS_PROVIDER='africastalking', AT_USERNAME='myschool', AT_API_KEY='key',
+AT = dict(SMS_PROVIDER='africastalking', SMS_FALLBACK=True, TWILIO_ACCOUNT_SID='', TWILIO_AUTH_TOKEN='',
+          TWILIO_FROM_NUMBER='', TWILIO_MESSAGING_SERVICE_SID='', AT_USERNAME='myschool', AT_API_KEY='key',
           AT_SENDER_ID='', AT_SANDBOX=False, SMS_DEFAULT_COUNTRY_CODE='260')
 
 
@@ -288,3 +289,69 @@ class AfricasTalkingTests(SimpleTestCase):
             with self.assertRaises(service.SMSError):
                 service.send_sms('abc', 'hello')
         post.assert_not_called()
+
+
+BOTH = {**AT, 'TWILIO_ACCOUNT_SID': 'ACtest', 'TWILIO_AUTH_TOKEN': 'token',
+        'TWILIO_FROM_NUMBER': '+15005550006'}
+
+
+@override_settings(**BOTH)
+class FallbackTests(SimpleTestCase):
+    def test_primary_success_does_not_touch_twilio(self):
+        client = fake_client()
+        with patch.object(service, '_at_post', return_value=at_reply()), \
+                patch.object(service, '_client', return_value=client):
+            self.assertEqual(service.send_sms('0971234567', 'hi'), 'ATXid_1')
+        client.messages.create.assert_not_called()
+
+    def test_twilio_used_when_africastalking_fails(self):
+        client = fake_client('SM9')
+        with patch.object(service, '_at_post', side_effect=service.SMSError('HTTP 401')), \
+                patch.object(service, '_client', return_value=client):
+            self.assertEqual(service.send_sms('0971234567', 'hi'), 'twilio:SM9')
+        self.assertEqual(client.messages.create.call_args.kwargs['to'], '+260971234567')
+
+    def test_rejected_recipient_also_falls_back(self):
+        client = fake_client('SM9')
+        with patch.object(service, '_at_post', return_value=at_reply(403, 'InvalidPhoneNumber')), \
+                patch.object(service, '_client', return_value=client):
+            self.assertEqual(service.send_sms('0971234567', 'hi'), 'twilio:SM9')
+
+    def test_both_failing_reports_both_errors(self):
+        client = fake_client()
+        client.messages.create.side_effect = RuntimeError('twilio down')
+        with patch.object(service, '_at_post', side_effect=service.SMSError('HTTP 401')), \
+                patch.object(service, '_client', return_value=client):
+            with self.assertRaises(service.SMSError) as caught:
+                service.send_sms('0971234567', 'hi')
+        self.assertIn("Africa's Talking: HTTP 401", str(caught.exception))
+        self.assertIn('Twilio: twilio down', str(caught.exception))
+
+    def test_fallback_can_be_switched_off(self):
+        client = fake_client()
+        with override_settings(SMS_FALLBACK=False), \
+                patch.object(service, '_at_post', side_effect=service.SMSError('HTTP 401')), \
+                patch.object(service, '_client', return_value=client):
+            with self.assertRaises(service.SMSError):
+                service.send_sms('0971234567', 'hi')
+        client.messages.create.assert_not_called()
+
+    def test_invalid_number_never_triggers_fallback(self):
+        client = fake_client()
+        with patch.object(service, '_at_post') as post, patch.object(service, '_client', return_value=client):
+            with self.assertRaises(service.SMSError):
+                service.send_sms('abc', 'hi')
+        post.assert_not_called()
+        client.messages.create.assert_not_called()
+
+    def test_twilio_chosen_first_falls_back_to_africastalking(self):
+        client = fake_client()
+        client.messages.create.side_effect = RuntimeError('boom')
+        with override_settings(SMS_PROVIDER='twilio'), \
+                patch.object(service, '_client', return_value=client), \
+                patch.object(service, '_at_post', return_value=at_reply(mid='ATXid_7')):
+            self.assertEqual(service.send_sms('0971234567', 'hi'), 'africastalking:ATXid_7')
+
+    def test_configured_when_only_the_fallback_is_set(self):
+        with override_settings(AT_API_KEY=''):
+            self.assertTrue(service.is_configured())
