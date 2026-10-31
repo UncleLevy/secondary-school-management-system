@@ -111,6 +111,8 @@ CORS_ALLOWED_ORIGINS = [
 # SMS — leave blank until you have credentials; the app works without them.
 # SMS_PROVIDER is "africastalking" (default) or "twilio".
 SMS_PROVIDER = config('SMS_PROVIDER', default='africastalking')
+# If the chosen provider fails, retry through the other one when it is configured.
+SMS_FALLBACK = config('SMS_FALLBACK', default=True, cast=bool)
 AT_USERNAME = config('AT_USERNAME', default='')
 AT_API_KEY = config('AT_API_KEY', default='')
 AT_SENDER_ID = config('AT_SENDER_ID', default='')

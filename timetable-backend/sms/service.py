@@ -32,10 +32,26 @@ def provider():
     return (getattr(settings, 'SMS_PROVIDER', 'africastalking') or 'africastalking').lower()
 
 
-def is_configured():
-    if provider() == 'twilio':
-        return _twilio_configured()
+def _at_configured():
     return bool(settings.AT_API_KEY and settings.AT_USERNAME)
+
+
+def _usable_providers():
+    """Configured providers in the order they are tried: the chosen one first.
+
+    The other provider follows as a fallback when SMS_FALLBACK is on.
+    """
+    primary = provider()
+    other = 'africastalking' if primary == 'twilio' else 'twilio'
+    configured = {'africastalking': _at_configured(), 'twilio': _twilio_configured()}
+    order = [primary]
+    if getattr(settings, 'SMS_FALLBACK', True):
+        order.append(other)
+    return [name for name in order if configured[name]]
+
+
+def is_configured():
+    return bool(_usable_providers())
 
 
 def _twilio_configured():
@@ -108,9 +124,33 @@ def _send_africastalking(number, body):
     return first.get('messageId', '')
 
 
+def _send_twilio(number, body):
+    params = {'to': number, 'body': body}
+    if settings.TWILIO_MESSAGING_SERVICE_SID:
+        params['messaging_service_sid'] = settings.TWILIO_MESSAGING_SERVICE_SID
+    else:
+        params['from_'] = settings.TWILIO_FROM_NUMBER
+    try:
+        message = _client().messages.create(**params)
+    except Exception as exc:  # Twilio raises TwilioRestException; network errors vary
+        raise SMSError(str(exc)) from exc
+    return message.sid
+
+
+_SENDERS = {'africastalking': _send_africastalking, 'twilio': _send_twilio}
+_LABELS = {'africastalking': "Africa's Talking", 'twilio': 'Twilio'}
+
+
 def send_sms(to, body):
-    """Send one SMS and return the provider's message id."""
-    if not is_configured():
+    """Send one SMS and return the provider's message id.
+
+    The chosen provider is tried first. If it fails and the other provider is
+    configured (and SMS_FALLBACK is on), the message is retried there; ids from
+    the fallback are prefixed "twilio:" or "africastalking:" so the history shows
+    which one delivered it.
+    """
+    providers = _usable_providers()
+    if not providers:
         if provider() == 'twilio':
             raise SMSNotConfigured(
                 'SMS is not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and '
@@ -123,16 +163,13 @@ def send_sms(to, body):
     number = normalize_phone(to)
     if not number:
         raise SMSError(f'"{to}" is not a valid phone number.')
-    if provider() != 'twilio':
-        return _send_africastalking(number, body)
 
-    params = {'to': number, 'body': body}
-    if settings.TWILIO_MESSAGING_SERVICE_SID:
-        params['messaging_service_sid'] = settings.TWILIO_MESSAGING_SERVICE_SID
-    else:
-        params['from_'] = settings.TWILIO_FROM_NUMBER
-    try:
-        message = _client().messages.create(**params)
-    except Exception as exc:  # Twilio raises TwilioRestException; network errors vary
-        raise SMSError(str(exc)) from exc
-    return message.sid
+    errors = []
+    for index, name in enumerate(providers):
+        try:
+            message_id = _SENDERS[name](number, body)
+        except SMSError as exc:
+            errors.append(f'{_LABELS[name]}: {exc}' if len(providers) > 1 else str(exc))
+            continue
+        return f'{name}:{message_id}' if index else message_id
+    raise SMSError(' | '.join(errors))
