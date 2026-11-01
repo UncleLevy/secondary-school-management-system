@@ -114,3 +114,27 @@ class ServiceTests(APITestCase):
     def test_invalid_address_raises(self):
         with self.assertRaises(service.EmailError):
             service.send_email('bad', 's', 'b')
+
+
+class GmailSettingsTests(APITestCase):
+    def test_app_password_spaces_are_ignored_and_smtp_is_auto_selected(self):
+        import os, subprocess, sys
+        env = dict(os.environ, SECRET_KEY='x', EMAIL_HOST_USER=' me@gmail.com ',
+                   EMAIL_HOST_PASSWORD='abcd efgh ijkl mnop', DJANGO_SETTINGS_MODULE='core.settings')
+        env.pop('EMAIL_BACKEND', None)
+        out = subprocess.run([sys.executable, '-c',
+            'from django.conf import settings as s; print(s.EMAIL_BACKEND, s.EMAIL_HOST_USER, s.EMAIL_HOST_PASSWORD, s.DEFAULT_FROM_EMAIL)'],
+            env=env, capture_output=True, text=True, cwd=str(__import__('django').conf.settings.BASE_DIR))
+        self.assertEqual(out.stdout.split(),
+                         ['django.core.mail.backends.smtp.EmailBackend', 'me@gmail.com',
+                          'abcdefghijklmnop', 'me@gmail.com'])
+
+    def test_console_when_blank(self):
+        import os, subprocess, sys
+        env = dict(os.environ, SECRET_KEY='x', EMAIL_HOST_USER='', EMAIL_HOST_PASSWORD='',
+                   DJANGO_SETTINGS_MODULE='core.settings')
+        env.pop('EMAIL_BACKEND', None)
+        out = subprocess.run([sys.executable, '-c',
+            'from django.conf import settings as s; print(s.EMAIL_BACKEND)'],
+            env=env, capture_output=True, text=True, cwd=str(__import__('django').conf.settings.BASE_DIR))
+        self.assertIn('console', out.stdout)

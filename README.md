@@ -57,8 +57,9 @@ Never commit this file. All keys are optional; the app runs without SMS or SMTP.
 | `AT_USERNAME`, `AT_API_KEY`, `AT_SENDER_ID`, `AT_SANDBOX` | blank | Africa's Talking. Username `sandbox` uses the sandbox; use a sandbox key only with the sandbox username |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` / `TWILIO_MESSAGING_SERVICE_SID` | blank | Twilio |
 | `SMS_DEFAULT_COUNTRY_CODE` | `260` | Local numbers like `097…` become `+260…` |
-| `EMAIL_BACKEND` | console | Console prints emails in the server terminal (test mode). Use `django.core.mail.backends.smtp.EmailBackend` for real delivery |
-| `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USE_TLS`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL` | Gmail SMTP defaults, blank login | SMTP details (for Gmail use an App Password) |
+| `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD` | blank | Gmail address and Gmail **App Password**. When both are set, real email is sent through Gmail SMTP automatically. When blank, emails are only printed in the backend terminal (test mode) |
+| `DEFAULT_FROM_EMAIL` | the Gmail address | Sender shown to recipients |
+| `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USE_TLS`, `EMAIL_BACKEND` | `smtp.gmail.com`, `587`, `true`, auto | Only change these to use a provider other than Gmail |
 | `SCHOOL_NAME` | `School Timetable` | Shown in email subjects and bodies |
 | `OTP_LOGIN_REQUIRED` | `false` | `true` asks for an emailed code after the password at every sign-in. Users with no email address skip it |
 | `OTP_TTL_MINUTES`, `OTP_RESEND_SECONDS` | `10`, `60` | Code lifetime and resend wait |
@@ -68,6 +69,14 @@ Never commit this file. All keys are optional; the app runs without SMS or SMTP.
 1. Phone numbers are normalised to international format (E.164). An invalid number is rejected before any provider is called.
 2. The chosen provider is tried first; if it fails and fallback is on, the other provider is tried. Both errors are shown if both fail.
 3. If no provider is configured, sending returns HTTP 503 and nothing is logged.
+
+### Setting up Gmail (App Password)
+
+1. Sign in to the Gmail account that will send the emails and turn on **2-Step Verification** (Google Account, Security).
+2. Open <https://myaccount.google.com/apppasswords>, create an App Password named e.g. "School Timetable", and copy the 16 characters.
+3. In `timetable-backend/.env` set `EMAIL_HOST_USER=you@gmail.com` and `EMAIL_HOST_PASSWORD=` the App Password (spaces are ignored). Never use your normal Gmail password, and never commit `.env`.
+4. Restart the backend, open **Messages > Email**: the "Test mode" banner disappears. Send yourself a test message.
+5. Gmail limits normal accounts to about 500 emails a day, which is plenty for a school. If a password is ever shared by mistake, delete it on the same Google page and make a new one.
 
 ### One-time codes
 

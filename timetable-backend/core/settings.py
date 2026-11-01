@@ -125,15 +125,21 @@ TWILIO_MESSAGING_SERVICE_SID = config('TWILIO_MESSAGING_SERVICE_SID', default=''
 # Local numbers such as 0971234567 are converted using this country code (260 = Zambia).
 SMS_DEFAULT_COUNTRY_CODE = config('SMS_DEFAULT_COUNTRY_CODE', default='260')
 
-# Email — console backend prints messages to the terminal until SMTP is set up.
-EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
+# Email — sent through Gmail SMTP using an App Password. Until EMAIL_HOST_USER and
+# EMAIL_HOST_PASSWORD are filled in, emails are only printed in the server terminal.
 EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
 EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
-EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
-EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='').strip()
+# Google shows App Passwords in groups ("abcd efgh ijkl mnop"); the spaces are not part of it.
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='').replace(' ', '')
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+EMAIL_BACKEND = config(
+    'EMAIL_BACKEND',
+    default=('django.core.mail.backends.smtp.EmailBackend'
+             if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD
+             else 'django.core.mail.backends.console.EmailBackend'))
 EMAIL_TIMEOUT = 15
-DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default=EMAIL_HOST_USER or 'timetable@localhost')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='') or EMAIL_HOST_USER or 'timetable@localhost'
 # School name shown in email subjects.
 SCHOOL_NAME = config('SCHOOL_NAME', default='School Timetable')
 
