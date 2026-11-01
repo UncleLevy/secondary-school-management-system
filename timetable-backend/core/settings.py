@@ -142,6 +142,8 @@ EMAIL_TIMEOUT = 15
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='') or EMAIL_HOST_USER or 'timetable@localhost'
 # School name shown in email subjects.
 SCHOOL_NAME = config('SCHOOL_NAME', default='School Timetable')
+# Optional: path to your own logo (PNG/JPG, about 96x96) for the email header.
+EMAIL_LOGO_PATH = config('EMAIL_LOGO_PATH', default='')
 
 # One-time passcodes (sent by email). OTP_LOGIN_REQUIRED adds a second sign-in step;
 # it is off by default so nobody is locked out before email is working.

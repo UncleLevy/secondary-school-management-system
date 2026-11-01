@@ -16,7 +16,7 @@ A web app for building and managing a secondary school timetable, spotting clash
 | Dashboards | Separate Admin/Management and Teacher dashboards; teachers see only their own schedule |
 | Notifications | In-app bell and banners |
 | Messages (SMS) | Custom message, a day's timetable, or clash alerts. Africa's Talking by default, Twilio as automatic fallback |
-| Messages (Email) | Same three actions by email, using each teacher's email address |
+| Messages (Email) | Same three actions by email, using each teacher's email address. Emails are branded HTML (school name and logo in the header) with a plain-text version |
 | One-time codes (OTP) | Emailed 6-digit codes for forgot-password, and optionally as a second step at sign-in |
 
 Roles: `admin`, `management` (can send messages), `teacher` (own schedule only).
@@ -61,6 +61,7 @@ Never commit this file. All keys are optional; the app runs without SMS or SMTP.
 | `DEFAULT_FROM_EMAIL` | the Gmail address | Sender shown to recipients |
 | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USE_TLS`, `EMAIL_BACKEND` | `smtp.gmail.com`, `587`, `true`, auto | Only change these to use a provider other than Gmail |
 | `SCHOOL_NAME` | `School Timetable` | Shown in email subjects and bodies |
+| `EMAIL_LOGO_PATH` | built-in icon | Full path to your own school logo (PNG, about 96x96) shown in the email header |
 | `OTP_LOGIN_REQUIRED` | `false` | `true` asks for an emailed code after the password at every sign-in. Users with no email address skip it |
 | `OTP_TTL_MINUTES`, `OTP_RESEND_SECONDS` | `10`, `60` | Code lifetime and resend wait |
 

@@ -114,7 +114,7 @@ class LoginOtpTests(APITestCase):
 
     def test_email_failure_returns_503_not_tokens(self):
         from unittest.mock import patch
-        with patch('mailer.service.send_mail', side_effect=OSError('down')):
+        with patch('mailer.service.EmailMultiAlternatives.send', side_effect=OSError('down')):
             r = self.start()
         self.assertEqual(r.status_code, 503)
         self.assertNotIn('access', r.data)

@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f1f5f9;padding:24px 12px;">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellspacing="0" cellpadding="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
+        <tr>
+          <td style="background:#1e3a8a;padding:20px 24px;">
+            <table role="presentation" cellspacing="0" cellpadding="0"><tr>
+              {% if logo %}<td style="padding-right:14px;"><img src="cid:{{ logo }}" width="48" height="48" alt="" style="display:block;border:0;border-radius:10px;"></td>{% endif %}
+              <td style="color:#ffffff;">
+                <div style="font-size:18px;font-weight:bold;line-height:22px;">{{ school }}</div>
+                <div style="font-size:12px;color:#bfdbfe;line-height:18px;">Timetable system</div>
+              </td>
+            </tr></table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:28px 24px 8px 24px;">
+            <h1 style="margin:0 0 16px 0;font-size:20px;line-height:26px;color:#0f172a;">{{ heading }}</h1>
+            {% if greeting %}<p style="margin:0 0 12px 0;font-size:15px;line-height:22px;">{{ greeting }}</p>{% endif %}
+            {% if code %}
+            <p style="margin:0 0 12px 0;font-size:15px;line-height:22px;">{{ intro }}</p>
+            <div style="margin:20px 0;padding:16px;text-align:center;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;">
+              <span style="font-size:32px;letter-spacing:10px;font-weight:bold;color:#1e3a8a;font-family:'Courier New',monospace;">{{ code }}</span>
+            </div>
+            <p style="margin:0 0 12px 0;font-size:13px;line-height:20px;color:#475569;">{{ note }}</p>
+            {% else %}
+            <div style="font-size:15px;line-height:23px;">{{ body|linebreaks }}</div>
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:16px 24px 24px 24px;">
+            <hr style="border:0;border-top:1px solid #e2e8f0;margin:0 0 12px 0;">
+            <p style="margin:0;font-size:12px;line-height:18px;color:#64748b;">Sent by {{ school }}. Please do not reply to this email.</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>
