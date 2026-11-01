@@ -151,9 +151,8 @@ export default function SMS() {
               </p>
             ) : (
               <p>
-                <strong>Email is not set up yet.</strong> Set <code>EMAIL_BACKEND</code> to the SMTP backend and add{" "}
-                <code>EMAIL_HOST_USER</code> and <code>EMAIL_HOST_PASSWORD</code> to the backend{" "}
-                <code>.env</code> file, then restart the server.
+                <strong>Email is not set up yet.</strong> Add your Gmail address as <code>EMAIL_HOST_USER</code> and a Gmail
+                App Password as <code>EMAIL_HOST_PASSWORD</code> to the backend <code>.env</code> file, then restart the server.
               </p>
             )}
           </CardContent>
@@ -166,7 +165,7 @@ export default function SMS() {
             <Info className="w-4 h-4 mt-0.5 shrink-0" />
             <p>
               <strong>Test mode.</strong> Emails are printed in the server terminal instead of being delivered.
-              Switch <code>EMAIL_BACKEND</code> to the SMTP backend in <code>.env</code> to send real emails.
+              Add <code>EMAIL_HOST_USER</code> and <code>EMAIL_HOST_PASSWORD</code> (a Gmail App Password) in <code>.env</code> to send real emails.
             </p>
           </CardContent>
         </Card>
