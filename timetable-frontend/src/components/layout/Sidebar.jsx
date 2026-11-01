@@ -29,7 +29,7 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
 
   const items = [
     ...navItems,
-    ...(canManage ? [{ label: "SMS", path: "/sms", icon: MessageSquare }] : []),
+    ...(canManage ? [{ label: "Messages", path: "/sms", icon: MessageSquare }] : []),
     ...(isAdmin ? [{ label: "Teachers", path: "/teachers", icon: SquareUserRound }] : []),
   ];
 

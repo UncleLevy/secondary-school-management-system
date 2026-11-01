@@ -16,7 +16,9 @@ api.interceptors.response.use(
 	res => res,
 	async err => {
 		const originalRequest = err.config;
-		if (err.response?.status === 401 && !originalRequest?._retry) {
+		// A wrong password on the sign-in form is an expected 401: let the form show it.
+		const isLogin = originalRequest?.url?.startsWith('/auth/login');
+		if (err.response?.status === 401 && !originalRequest?._retry && !isLogin) {
 			originalRequest._retry = true;
 			const refresh = localStorage.getItem('refresh_token');
 			if (refresh) {
@@ -72,15 +74,37 @@ api.interceptors.response.use(
           sendTimetable:    (data) => api.post('/sms/send-timetable/', data).then(r => r.data),
           sendClashAlerts:  ()     => api.post('/sms/send-clash-alerts/').then(r => r.data),
       },
+      Email: {
+          status:           ()     => api.get('/email/status/').then(r => r.data),
+          list:             ()     => api.get('/email/').then(r => r.data.results || r.data),
+          send:             (data) => api.post('/email/send/', data).then(r => r.data),
+          sendTimetable:    (data) => api.post('/email/send-timetable/', data).then(r => r.data),
+          sendClashAlerts:  ()     => api.post('/email/send-clash-alerts/').then(r => r.data),
+      },
+  };
+
+  const saveTokens = (data) => {
+      localStorage.setItem('access_token', data.access);
+      localStorage.setItem('refresh_token', data.refresh);
   };
 
   export const auth = {
+      // Returns { otp_required, challenge, email_hint } when a code was emailed,
+      // otherwise stores the tokens and returns them.
       login: async (username, password) => {
           const { data } = await api.post('/auth/login/', { username, password });
-          localStorage.setItem('access_token', data.access);
-          localStorage.setItem('refresh_token', data.refresh);
+          if (data.access) saveTokens(data);
           return data;
       },
+      verifyLogin: async (challenge, code) => {
+          const { data } = await api.post('/auth/login/verify/', { challenge, code });
+          saveTokens(data);
+          return data;
+      },
+      resendLoginCode: (challenge) => api.post('/auth/login/resend/', { challenge }).then(r => r.data),
+      forgotPassword: (email) => api.post('/auth/forgot-password/', { email }).then(r => r.data),
+      resetPassword: (email, code, new_password) =>
+          api.post('/auth/reset-password/', { email, code, new_password }).then(r => r.data),
       changePassword: (current_password, new_password) =>
           api.post('/auth/change-password/', { current_password, new_password }).then(r => r.data),
       logout: () => {
