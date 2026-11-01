@@ -5,7 +5,7 @@ A React + Vite + Tailwind CSS + shadcn/ui frontend for the school timetable syst
 ## Prerequisites
 
 - Node.js 18+
-- The Django backend running locally (see `timetable-backend/README` / `manage.py runserver`), by default at `http://localhost:8000`
+- The Django backend running locally (see the main [README](../README.md) for setup and settings), by default at `http://localhost:8000`
 
 ## Setup
 

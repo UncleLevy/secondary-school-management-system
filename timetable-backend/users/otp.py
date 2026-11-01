@@ -44,7 +44,12 @@ def issue(user, purpose):
             f"If you did not ask for it, you can ignore this email.\n\n"
             f"{settings.SCHOOL_NAME}")
     try:
-        mail.send_email(user.email, f"{settings.SCHOOL_NAME}: {subject_part}", body)
+        mail.send_email(
+            user.email, f"{settings.SCHOOL_NAME}: {subject_part}", body, code=code,
+            greeting=f"Hello {user.get_full_name() or user.username},",
+            intro=f"Use this code to {action}:",
+            note=f"It expires in {settings.OTP_TTL_MINUTES} minutes and works once. "
+                 f"If you did not ask for it, you can ignore this email.")
     except mail.EmailError as exc:
         raise OTPError('We could not send the email. Please try again later or '
                        'ask an administrator to check the email settings.') from exc
