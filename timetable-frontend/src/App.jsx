@@ -9,12 +9,15 @@ import Timetable from '@/pages/Timetable';
 import Teachers from '@/pages/Teachers';
 import SMS from '@/pages/SMS';
 import Login from '@/pages/Login';
+import ForgotPassword from '@/pages/ForgotPassword';
 
 const AuthGuard = ({ children }) => {
   const location = useLocation();
   const isAuthenticated = !!localStorage.getItem('access_token');
 
-  if (!isAuthenticated && location.pathname !== '/login') {
+  const isPublic = ['/login', '/forgot-password'].includes(location.pathname);
+
+  if (!isAuthenticated && !isPublic) {
     window.location.href = '/login';
     return null;
   }
@@ -26,6 +29,7 @@ const AppContent = () => {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route element={<AppLayout />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/timetable" element={<Timetable />} />

@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { entities } from "@/api/apiClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { MessageSquare, Send, CalendarDays, AlertTriangle, ShieldAlert, Info } from "lucide-react";
+import { MessageSquare, Mail, Send, CalendarDays, AlertTriangle, ShieldAlert, Info } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +28,19 @@ const STATUS_COLORS = {
 };
 
 const hasPhone = (teacher) => (teacher.phone || "").replace(/\D/g, "").length >= 9;
+const hasEmail = (teacher) => /^\S+@\S+\.\S+$/.test(teacher.user_email || "");
+
+// Everything that differs between the two channels lives here.
+const CHANNELS = {
+  sms: {
+    label: "SMS", verb: "text", past: "texted", icon: MessageSquare, api: () => entities.SMS,
+    canReach: hasPhone, contact: (t) => t.phone, none: "No phone number", everyone: "Everyone with a phone",
+  },
+  email: {
+    label: "Email", verb: "email", past: "emailed", icon: Mail, api: () => entities.Email,
+    canReach: hasEmail, contact: (t) => t.user_email, none: "No email address", everyone: "Everyone with an email",
+  },
+};
 
 const defaultDay = () => {
   const today = new Date().toLocaleDateString("en-US", { weekday: "long" });
@@ -37,17 +51,21 @@ export default function SMS() {
   const { canManage, isLoading: loadingUser } = useCurrentUser();
   const queryClient = useQueryClient();
 
-  const [selected, setSelected] = useState(null); // null = "everyone with a phone"
+  const [channel, setChannel] = useState("sms");
+  const ch = CHANNELS[channel];
+  const api = ch.api();
+  const [subject, setSubject] = useState("");
+  const [selected, setSelected] = useState(null); // null = "everyone reachable on this channel"
   const [day, setDay] = useState(defaultDay);
   const [message, setMessage] = useState("");
   const [confirm, setConfirm] = useState(null); // { title, description, run }
   const [lastResult, setLastResult] = useState(null);
 
-  const { data: status } = useQuery({ queryKey: ["sms-status"], queryFn: () => entities.SMS.status(), enabled: canManage });
+  const { data: status } = useQuery({ queryKey: [channel, "status"], queryFn: () => api.status(), enabled: canManage });
   const { data: teachers = [], isLoading: loadingTeachers } = useQuery({
     queryKey: ["teachers"], queryFn: () => entities.Teacher.list(), enabled: canManage,
   });
-  const { data: history = [] } = useQuery({ queryKey: ["sms-history"], queryFn: () => entities.SMS.list(), enabled: canManage });
+  const { data: history = [] } = useQuery({ queryKey: [channel, "history"], queryFn: () => api.list(), enabled: canManage });
   const { data: clashData } = useQuery({
     queryKey: ["timetable-clashes"], queryFn: () => entities.TimetableSlot.clashes(), enabled: canManage,
   });
@@ -55,8 +73,8 @@ export default function SMS() {
 
   const activeTeachers = useMemo(() => teachers.filter((t) => t.status === "Active"), [teachers]);
   const selectedIds = useMemo(
-    () => selected ?? new Set(activeTeachers.filter(hasPhone).map((t) => t.id)),
-    [selected, activeTeachers],
+    () => selected ?? new Set(activeTeachers.filter(ch.canReach).map((t) => t.id)),
+    [selected, activeTeachers, ch],
   );
   const toggle = (id) => {
     const next = new Set(selectedIds);
@@ -69,23 +87,23 @@ export default function SMS() {
 
   const onDone = (result) => {
     setLastResult(result);
-    queryClient.invalidateQueries({ queryKey: ["sms-history"] });
+    queryClient.invalidateQueries({ queryKey: [channel, "history"] });
     if (result.detail && result.sent === 0 && result.failed === 0) toast.info(result.detail);
     else if (result.failed > 0) toast.error(`${result.sent} sent, ${result.failed} failed`);
     else toast.success(`${result.sent} message${result.sent === 1 ? "" : "s"} sent`);
   };
-  const onError = (error) => toast.error(getErrorMessage(error, "Could not send SMS"));
+  const onError = (error) => toast.error(getErrorMessage(error, `Could not send ${ch.label === "SMS" ? "SMS" : "email"}`));
 
   const sendMessage = useMutation({
-    mutationFn: () => entities.SMS.send({ teacher_ids: recipientIds, message: message.trim() }),
-    onSuccess: (r) => { onDone(r); setMessage(""); }, onError,
+    mutationFn: () => api.send(channel === "email" ? { teacher_ids: recipientIds, subject: subject.trim(), message: message.trim() } : { teacher_ids: recipientIds, message: message.trim() }),
+    onSuccess: (r) => { onDone(r); setMessage(""); setSubject(""); }, onError,
   });
   const sendTimetable = useMutation({
-    mutationFn: () => entities.SMS.sendTimetable({ teacher_ids: recipientIds, day }),
+    mutationFn: () => api.sendTimetable({ teacher_ids: recipientIds, day }),
     onSuccess: onDone, onError,
   });
   const sendClashAlerts = useMutation({
-    mutationFn: () => entities.SMS.sendClashAlerts(), onSuccess: onDone, onError,
+    mutationFn: () => api.sendClashAlerts(), onSuccess: onDone, onError,
   });
   const busy = sendMessage.isPending || sendTimetable.isPending || sendClashAlerts.isPending;
 
@@ -95,7 +113,7 @@ export default function SMS() {
       <EmptyState
         icon={ShieldAlert}
         title="Access restricted"
-        description="Only administrators and management can send SMS messages."
+        description="Only administrators and management can send messages."
       />
     );
   }
@@ -105,18 +123,50 @@ export default function SMS() {
   return (
     <div>
       <PageHeader
-        title="SMS Notifications"
-        description="Text teachers their timetable, clash alerts and notices"
+        title="Messages"
+        description="Send teachers their timetable, clash alerts and notices by SMS or email"
       />
+
+      <div className="inline-flex p-1 mb-6 rounded-lg bg-muted" role="tablist" aria-label="Channel">
+        {Object.entries(CHANNELS).map(([key, c]) => (
+          <button
+            key={key} role="tab" aria-selected={channel === key}
+            onClick={() => { setChannel(key); setSelected(null); setLastResult(null); }}
+            className={`flex items-center gap-2 px-4 py-1.5 text-sm font-medium rounded-md transition ${channel === key ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            <c.icon className="w-4 h-4" /> {c.label}
+          </button>
+        ))}
+      </div>
 
       {status && !configured && (
         <Card className="mb-6 border shadow-none border-amber-300 bg-amber-50">
           <CardContent className="flex items-start gap-2 p-4 text-sm text-amber-900">
             <Info className="w-4 h-4 mt-0.5 shrink-0" />
+            {channel === "sms" ? (
+              <p>
+                <strong>SMS is not set up yet.</strong> Add <code>AT_USERNAME</code> and{" "}
+                <code>AT_API_KEY</code> to the backend{" "}
+                <code>.env</code> file and restart the server. Sending is disabled until then.
+              </p>
+            ) : (
+              <p>
+                <strong>Email is not set up yet.</strong> Set <code>EMAIL_BACKEND</code> to the SMTP backend and add{" "}
+                <code>EMAIL_HOST_USER</code> and <code>EMAIL_HOST_PASSWORD</code> to the backend{" "}
+                <code>.env</code> file, then restart the server.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {status?.configured && channel === "email" && !status.real_delivery && (
+        <Card className="mb-6 border shadow-none border-sky-300 bg-sky-50">
+          <CardContent className="flex items-start gap-2 p-4 text-sm text-sky-900">
+            <Info className="w-4 h-4 mt-0.5 shrink-0" />
             <p>
-              <strong>SMS is not set up yet.</strong> Add <code>AT_USERNAME</code> and{" "}
-              <code>AT_API_KEY</code> to the backend{" "}
-              <code>.env</code> file and restart the server. Sending is disabled until then.
+              <strong>Test mode.</strong> Emails are printed in the server terminal instead of being delivered.
+              Switch <code>EMAIL_BACKEND</code> to the SMTP backend in <code>.env</code> to send real emails.
             </p>
           </CardContent>
         </Card>
@@ -142,15 +192,15 @@ export default function SMS() {
                 ) : (
                   <div className="space-y-1">
                     <div className="flex gap-3 pb-2 text-xs">
-                      <button className="text-primary hover:underline" onClick={() => setSelected(new Set(activeTeachers.filter(hasPhone).map((t) => t.id)))}>Everyone with a phone</button>
+                      <button className="text-primary hover:underline" onClick={() => setSelected(new Set(activeTeachers.filter(ch.canReach).map((t) => t.id)))}>{ch.everyone}</button>
                       <button className="text-muted-foreground hover:underline" onClick={() => setSelected(new Set())}>Clear</button>
                     </div>
                     {activeTeachers.map((t) => (
                       <label key={t.id} className="flex items-center gap-3 px-2 py-2 rounded-lg cursor-pointer hover:bg-muted/50">
-                        <Checkbox checked={selectedIds.has(t.id)} onCheckedChange={() => toggle(t.id)} disabled={!hasPhone(t)} />
+                        <Checkbox checked={selectedIds.has(t.id)} onCheckedChange={() => toggle(t.id)} disabled={!ch.canReach(t)} />
                         <span className="flex-1 min-w-0">
                           <span className="block text-sm font-medium truncate">{t.full_name}</span>
-                          <span className="block text-xs text-muted-foreground">{hasPhone(t) ? t.phone : "No phone number"}</span>
+                          <span className="block text-xs text-muted-foreground">{ch.canReach(t) ? ch.contact(t) : ch.none}</span>
                         </span>
                       </label>
                     ))}
@@ -180,8 +230,8 @@ export default function SMS() {
                     className="gap-2"
                     disabled={!configured || busy || selectedIds.size === 0}
                     onClick={() => setConfirm({
-                      title: `Text the ${day} timetable?`,
-                      description: `${plural(selectedIds.size, "teacher")} will receive their ${day} lessons by SMS. Teachers with no lessons that day are skipped.`,
+                      title: `${ch.label === "SMS" ? "Text" : "Email"} the ${day} timetable?`,
+                      description: `${plural(selectedIds.size, "teacher")} will receive their ${day} lessons by ${ch.label.toLowerCase()}. Teachers with no lessons that day are skipped.`,
                       run: () => sendTimetable.mutate(),
                     })}
                   >
@@ -199,7 +249,7 @@ export default function SMS() {
                   <p className="text-xs text-muted-foreground">
                     {clashCount === 0
                       ? "The timetable has no clashes right now."
-                      : `${plural(clashCount, "clash")} in the timetable. Every teacher involved is texted, regardless of the selection.`}
+                      : `${plural(clashCount, "clash")} in the timetable. Every teacher involved is ${ch.past}, regardless of the selection.`}
                   </p>
                 </CardHeader>
                 <CardContent>
@@ -209,7 +259,7 @@ export default function SMS() {
                     disabled={!configured || busy || clashCount === 0}
                     onClick={() => setConfirm({
                       title: "Alert teachers about clashes?",
-                      description: `Teachers involved in the ${plural(clashCount, "clash")} will each receive a text describing it.`,
+                      description: `Teachers involved in the ${plural(clashCount, "clash")} will each receive a ${channel === "sms" ? "text" : "email"} describing it.`,
                       run: () => sendClashAlerts.mutate(),
                     })}
                   >
@@ -226,21 +276,28 @@ export default function SMS() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
+                  {channel === "email" && (
+                    <Input placeholder="Subject" maxLength={150} value={subject} onChange={(e) => setSubject(e.target.value)} />
+                  )}
                   <Textarea
                     rows={4}
-                    maxLength={MAX_LENGTH}
+                    maxLength={channel === "sms" ? MAX_LENGTH : 5000}
                     placeholder="e.g. Staff meeting today at 14:30 in the library."
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                   />
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">{message.length}/{MAX_LENGTH} characters · {Math.max(1, Math.ceil(message.length / 160))} SMS part(s)</span>
+                    <span className="text-xs text-muted-foreground">
+                      {channel === "sms"
+                        ? `${message.length}/${MAX_LENGTH} characters · ${Math.max(1, Math.ceil(message.length / 160))} SMS part(s)`
+                        : `${message.length}/5000 characters`}
+                    </span>
                     <Button
                       className="gap-2"
-                      disabled={!configured || busy || !message.trim() || selectedIds.size === 0}
+                      disabled={!configured || busy || !message.trim() || (channel === "email" && !subject.trim()) || selectedIds.size === 0}
                       onClick={() => setConfirm({
                         title: "Send this message?",
-                        description: `"${message.trim()}" will be texted to ${plural(selectedIds.size, "teacher")}.`,
+                        description: `"${message.trim()}" will be ${ch.past} to ${plural(selectedIds.size, "teacher")}.`,
                         run: () => sendMessage.mutate(),
                       })}
                     >
@@ -270,7 +327,7 @@ export default function SMS() {
 
         <TabsContent value="history">
           {history.length === 0 ? (
-            <EmptyState icon={MessageSquare} title="No messages yet" description="Messages you send will be listed here." />
+            <EmptyState icon={ch.icon} title="No messages yet" description="Messages you send will be listed here." />
           ) : (
             <div className="overflow-hidden border shadow-sm rounded-xl bg-card">
               <div className="overflow-x-auto">
@@ -289,11 +346,12 @@ export default function SMS() {
                       <TableRow key={m.id}>
                         <TableCell className="text-xs whitespace-nowrap">{new Date(m.created_at).toLocaleString()}</TableCell>
                         <TableCell>
-                          <p className="text-sm font-medium">{m.recipient_name || m.phone}</p>
-                          <p className="text-xs text-muted-foreground">{m.phone}</p>
+                          <p className="text-sm font-medium">{m.recipient_name || m.phone || m.email}</p>
+                          <p className="text-xs text-muted-foreground">{channel === "email" ? m.email : m.phone}</p>
                         </TableCell>
                         <TableCell className="text-xs">{m.kind}</TableCell>
                         <TableCell className="max-w-[360px]">
+                          {m.subject && <p className="text-xs font-medium">{m.subject}</p>}
                           <p className="text-xs line-clamp-2">{m.body}</p>
                           {m.error && <p className="mt-0.5 text-xs text-rose-700">{m.error}</p>}
                         </TableCell>
@@ -316,7 +374,7 @@ export default function SMS() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { confirm.run(); setConfirm(null); }}>Send SMS</AlertDialogAction>
+            <AlertDialogAction onClick={() => { confirm.run(); setConfirm(null); }}>Send {ch.label === "SMS" ? "SMS" : "email"}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
