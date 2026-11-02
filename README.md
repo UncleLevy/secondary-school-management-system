@@ -15,6 +15,7 @@ A web app for building and managing a secondary school timetable, spotting clash
 | Teachers | Teacher records with subjects and phone; teacher dropdown filtered by subject; login accounts for teachers |
 | Dashboards | Separate Admin/Management and Teacher dashboards; teachers see only their own schedule |
 | Notifications | In-app bell and banners |
+| Publish | The **Publish** button (Timetable and Messages pages) releases the timetable and automatically sends every active teacher their week by SMS and email. If clashes remain you are warned and must choose "Publish anyway". The last publish time is shown. Sending a single day or a custom message by hand is still available on the Messages page |
 | Messages (SMS) | Custom message, a day's timetable, or clash alerts. Africa's Talking by default, Twilio as automatic fallback |
 | Messages (Email) | Same three actions by email, using each teacher's email address. Emails are branded HTML (school name and logo in the header) with a plain-text version |
 | One-time codes (OTP) | Teachers must enter a 6-digit code after their password at every sign-in. It is sent by email and also by SMS when the teacher has a phone number. Also used for forgot-password |
@@ -100,6 +101,7 @@ All endpoints are under `/api/`. Everything except the public auth routes needs 
 | `POST auth/forgot-password/`, `POST auth/reset-password/` | Public. Reset takes `{email, code, new_password}` |
 | `POST auth/refresh/`, `GET auth/me/`, `POST auth/change-password/` | Signed-in users |
 | `teachers/`, `class-assignments/`, `timetable/` | CRUD (timetable also has `check-clash/`, `clashes/`, `my-schedule/`) |
+| `timetable/publish/`, `timetable/publication/` | Admin/management: publish and notify all teachers (`{allow_clashes}` to publish despite clashes; 409 otherwise). Any signed-in user can read the last publication |
 | `sms/` and `email/` | Admin/management only. `status/`, `send/`, `send-timetable/`, `send-clash-alerts/`; `GET` lists history |
 
 ## Clash rules

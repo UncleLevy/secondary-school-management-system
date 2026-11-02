@@ -25,6 +25,48 @@ def timetable_message(teacher_name, day):
     return f"Timetable for {day}: " + '; '.join(lessons)
 
 
+def _lesson_text(s):
+    when = f"P{s.period}" + (f" {s.start_time}" if s.start_time else '')
+    where = f" ({s.room})" if s.room else ''
+    return f"{when} {s.subject} {class_label(s.grade, s.section)}{where}"
+
+
+def week_for(teacher_name):
+    """[(day, [lesson text, ...])] for the teacher's whole week, in school-day order."""
+    from timetable.models import DAYS
+    slots = [s for s in TimetableSlot.objects.order_by('period')
+             if norm(s.teacher_name) == norm(teacher_name)]
+    out = []
+    for day, _ in DAYS:
+        lessons = [_lesson_text(s) for s in slots if s.day == day]
+        if lessons:
+            out.append((day, lessons))
+    return out
+
+
+def published_sms(teacher_name, school):
+    """Short SMS telling a teacher the timetable is out, with their week."""
+    week = week_for(teacher_name)
+    if not week:
+        return f"{school}: the timetable has been published. You have no lessons assigned."
+    days = ' | '.join(f"{d[:3]}: " + '; '.join(ls) for d, ls in week)
+    return f"{school}: the timetable has been published. Your week - {days}"
+
+
+def published_email(teacher_name, school):
+    """(subject, body) for the same announcement, laid out one day per paragraph."""
+    week = week_for(teacher_name)
+    lines = [f"Hello {teacher_name},", '', "The timetable has been published."]
+    if week:
+        lines += ['', 'Your lessons this week:']
+        for day, lessons in week:
+            lines += ['', day] + [f"  {x}" for x in lessons]
+    else:
+        lines += ['', 'You have no lessons assigned.']
+    lines += ['', 'Please check the timetable page for any later changes.']
+    return f"{school}: timetable published", '\n'.join(lines)
+
+
 def clash_alert_messages():
     """{normalised teacher name: message} for every teacher involved in a clash."""
     per_teacher = defaultdict(list)

@@ -191,3 +191,145 @@ class MyScheduleTests(APITestCase):
         self.login('banda@school.zm')
         clashes = self.client.get(self.URL).json()['clashes']
         self.assertEqual([c['name'].strip().lower() for c in clashes], ['mr. banda'])
+
+
+# ---------------------------------------------------------------- publishing
+from unittest.mock import patch
+from django.core import mail
+from django.test import override_settings as _ov
+from rest_framework.test import APITestCase as _API
+from django.contrib.auth import get_user_model as _gum
+from teachers.models import Teacher as _Teacher
+from timetable.models import TimetablePublication, TimetableSlot as _Slot
+
+_AT = dict(SMS_PROVIDER='africastalking', SMS_FALLBACK=False, AT_USERNAME='u', AT_API_KEY='k',
+           TWILIO_ACCOUNT_SID='', TWILIO_AUTH_TOKEN='', TWILIO_FROM_NUMBER='',
+           TWILIO_MESSAGING_SERVICE_SID='', SMS_DEFAULT_COUNTRY_CODE='260')
+_NOSMS = dict(_AT, AT_USERNAME='', AT_API_KEY='')
+_MAIL = dict(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend', SCHOOL_NAME='Test School')
+
+
+@_ov(**_AT, **_MAIL)
+class PublishTests(_API):
+    def setUp(self):
+        U = _gum()
+        self.admin = U.objects.create_user('adm', password='pw', role='admin')
+        self.mgr = U.objects.create_user('mgr', password='pw', role='management')
+        self.teach = U.objects.create_user('tch', password='pw', role='teacher')
+        self.banda = _Teacher.objects.create(user_email='b@x.com', full_name='Mr. Banda', phone='0971111111')
+        self.phiri = _Teacher.objects.create(user_email='p@x.com', full_name='Ms. Phiri', phone='0972222222')
+        self.client.force_authenticate(self.admin)
+
+    def slot(self, **kw):
+        d = dict(day='Monday', period=1, subject='Mathematics', teacher_name='Mr. Banda',
+                 grade='Grade 8', section='A', room='Room 1', start_time='07:30')
+        d.update(kw)
+        return _Slot.objects.create(**d)
+
+    def publish(self, **body):
+        with patch('sms.service.send_sms', return_value='ATid') as send:
+            r = self.client.post('/api/timetable/publish/', body, format='json')
+        return r, send
+
+    def test_publish_notifies_every_active_teacher_by_sms_and_email(self):
+        self.slot()
+        self.slot(day='Tuesday', teacher_name='Ms. Phiri', grade='Grade 9', room='Room 2')
+        r, send = self.publish()
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.data['published'])
+        self.assertEqual((r.data['sms']['sent'], r.data['email']['sent']), (2, 2))
+        self.assertEqual(send.call_count, 2)
+        self.assertEqual(len(mail.outbox), 2)
+        self.assertEqual({m.to[0] for m in mail.outbox}, {'b@x.com', 'p@x.com'})
+
+    def test_message_contains_the_teachers_own_week(self):
+        self.slot()
+        self.slot(day='Wednesday', period=3, subject='ICT', grade='Grade 9', room='Lab')
+        _, send = self.publish()
+        sms_text = [c.args[1] for c in send.call_args_list if c.args[0] == '0971111111'][0]
+        self.assertIn('published', sms_text)
+        self.assertIn('Mon: P1 07:30 Mathematics', sms_text)
+        self.assertIn('Wed: P3', sms_text)
+        body = [m.body for m in mail.outbox if m.to == ['b@x.com']][0]
+        self.assertIn('Monday', body)
+        self.assertIn('Wednesday', body)
+        self.assertNotIn('Tuesday', body)
+
+    def test_teacher_with_no_lessons_is_told_so(self):
+        self.slot()
+        _, send = self.publish()
+        text = [c.args[1] for c in send.call_args_list if c.args[0] == '0972222222'][0]
+        self.assertIn('no lessons', text)
+
+    def test_inactive_teachers_are_not_notified(self):
+        self.phiri.status = 'Inactive'; self.phiri.save()
+        r, send = self.publish()
+        self.assertEqual(r.data['teachers'], 1)
+        self.assertEqual(send.call_count, 1)
+
+    def test_publication_is_recorded_and_visible(self):
+        self.slot()
+        self.publish()
+        rec = TimetablePublication.objects.get()
+        self.assertEqual((rec.published_by, rec.slot_count, rec.teachers, rec.sms_sent, rec.email_sent),
+                         (self.admin, 1, 2, 2, 2))
+        self.client.force_authenticate(self.teach)       # teachers can see when it was published
+        r = self.client.get('/api/timetable/publication/')
+        self.assertTrue(r.data['published'])
+
+    def test_not_published_yet(self):
+        self.assertEqual(self.client.get('/api/timetable/publication/').data, {'published': False})
+
+    def test_clashes_block_publishing_unless_allowed(self):
+        self.slot()
+        self.slot(grade='Grade 9', section='B', room='Room 5')   # same teacher, same period
+        r, send = self.publish()
+        self.assertEqual(r.status_code, 409)
+        self.assertEqual(r.data['clash_count'], 1)
+        send.assert_not_called()
+        self.assertFalse(TimetablePublication.objects.exists())
+        r, send = self.publish(allow_clashes=True)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data['clashes'], 1)
+
+    def test_teacher_cannot_publish_and_management_can(self):
+        self.client.force_authenticate(self.teach)
+        self.assertEqual(self.client.post('/api/timetable/publish/').status_code, 403)
+        self.client.force_authenticate(self.mgr)
+        r, _ = self.publish()
+        self.assertEqual(r.status_code, 200)
+
+    def test_sms_failure_does_not_stop_email_or_publication(self):
+        from sms.service import SMSError
+        with patch('sms.service.send_sms', side_effect=SMSError('gateway down')):
+            r = self.client.post('/api/timetable/publish/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data['sms']['failed'], 2)
+        self.assertEqual(r.data['email']['sent'], 2)
+        self.assertEqual(TimetablePublication.objects.get().sms_failed, 2)
+
+    @_ov(**_NOSMS)
+    def test_unconfigured_sms_is_skipped_but_email_and_publication_go_ahead(self):
+        r, send = self.publish()
+        send.assert_not_called()
+        self.assertEqual(r.data['sms']['sent'], 0)
+        self.assertEqual(len(r.data['sms']['skipped']), 2)
+        self.assertEqual(r.data['email']['sent'], 2)
+
+    def test_missing_phone_and_email_are_skipped_with_reason(self):
+        self.banda.phone = ''; self.banda.save()
+        r, _ = self.publish()
+        self.assertEqual(r.data['sms']['sent'], 1)
+        self.assertEqual(r.data['sms']['skipped'][0]['reason'], 'No valid phone number')
+
+    def test_messages_are_logged_in_history(self):
+        from sms.models import SMSLog
+        from mailer.models import EmailLog
+        self.publish()
+        self.assertEqual(SMSLog.objects.filter(kind='Timetable').count(), 2)
+        self.assertEqual(EmailLog.objects.filter(kind='Timetable').count(), 2)
+
+    def test_publishing_again_notifies_again(self):
+        self.publish(); self.publish()
+        self.assertEqual(TimetablePublication.objects.count(), 2)
+        self.assertEqual(len(mail.outbox), 4)
