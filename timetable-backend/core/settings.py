@@ -11,7 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
-from decouple import config
+from decouple import Csv, config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -145,9 +145,12 @@ SCHOOL_NAME = config('SCHOOL_NAME', default='School Timetable')
 # Optional: path to your own logo (PNG/JPG, about 96x96) for the email header.
 EMAIL_LOGO_PATH = config('EMAIL_LOGO_PATH', default='')
 
-# One-time passcodes (sent by email). OTP_LOGIN_REQUIRED adds a second sign-in step;
-# it is off by default so nobody is locked out before email is working.
+# One-time passcodes, sent by email and (when a teacher has a phone number) by SMS.
+# Teachers always get a code at sign-in (OTP_LOGIN_ROLES). OTP_LOGIN_REQUIRED=true extends
+# that to every role; it is off by default so admins are not locked out before email works.
 OTP_LOGIN_REQUIRED = config('OTP_LOGIN_REQUIRED', default=False, cast=bool)
+# Roles that must always enter a code at sign-in (comma separated). Teachers by default.
+OTP_LOGIN_ROLES = config('OTP_LOGIN_ROLES', default='teacher', cast=Csv())
 OTP_LENGTH = 6
 OTP_TTL_MINUTES = config('OTP_TTL_MINUTES', default=10, cast=int)
 OTP_MAX_ATTEMPTS = 5

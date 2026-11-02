@@ -31,30 +31,85 @@ def seconds_until_resend(user, purpose):
     return max(0, int(wait + 0.999))
 
 
+def mask_email(email):
+    name, _, domain = email.partition('@')
+    return f"{name[:2]}{'*' * max(1, len(name) - 2)}@{domain}"
+
+
+def mask_phone(phone):
+    return f"{phone[:4]}{'*' * max(1, len(phone) - 7)}{phone[-3:]}"
+
+
+def teacher_phone(user):
+    """The phone number on the teacher record that shares this user's email, in +E.164."""
+    from sms import service as sms
+    from teachers.models import Teacher
+    if not user.email:
+        return ''
+    teacher = Teacher.objects.filter(user_email__iexact=user.email, status='Active').first()
+    return sms.normalize_phone(teacher.phone) if teacher and teacher.phone else ''
+
+
+def _sms_ready(phone):
+    from sms import service as sms
+    return bool(phone) and sms.is_configured()
+
+
+def channels_for(user):
+    """Where a code for this user can go: [('email', address), ('sms', +phone)]."""
+    out = []
+    if user.email and mail.is_valid_email(user.email):
+        out.append(('email', user.email))
+    phone = teacher_phone(user)
+    if _sms_ready(phone):
+        out.append(('sms', phone))
+    return out
+
+
+def required_for_login(user):
+    """Teachers (and any role in OTP_LOGIN_ROLES, or everyone if OTP_LOGIN_REQUIRED) need a code."""
+    return settings.OTP_LOGIN_REQUIRED or user.role in settings.OTP_LOGIN_ROLES
+
+
 def issue(user, purpose):
-    """Generate a code, email it, and return nothing. Older codes stop working."""
+    """Generate a code and send it by every channel available (email and, for teachers with a
+    phone number on file, SMS). Returns [{'channel', 'hint'}] for the channels that worked.
+    Older codes stop working. Raises OTPError if the code could not be delivered anywhere."""
     wait = seconds_until_resend(user, purpose)
     if wait:
         raise OTPError(f'Please wait {wait} seconds before asking for another code.')
+    from sms import service as sms
     code = ''.join(secrets.choice('0123456789') for _ in range(settings.OTP_LENGTH))
     subject_part, action = PURPOSE_TEXT[purpose]
-    body = (f"Hello {user.get_full_name() or user.username},\n\n"
+    name = user.get_full_name() or user.username
+    body = (f"Hello {name},\n\n"
             f"Your code to {action} is: {code}\n\n"
             f"It expires in {settings.OTP_TTL_MINUTES} minutes. "
             f"If you did not ask for it, you can ignore this email.\n\n"
             f"{settings.SCHOOL_NAME}")
-    try:
-        mail.send_email(
-            user.email, f"{settings.SCHOOL_NAME}: {subject_part}", body, code=code,
-            greeting=f"Hello {user.get_full_name() or user.username},",
-            intro=f"Use this code to {action}:",
-            note=f"It expires in {settings.OTP_TTL_MINUTES} minutes and works once. "
-                 f"If you did not ask for it, you can ignore this email.")
-    except mail.EmailError as exc:
-        raise OTPError('We could not send the email. Please try again later or '
-                       'ask an administrator to check the email settings.') from exc
+    sms_body = (f"{settings.SCHOOL_NAME}: your code to {action} is {code}. "
+                f"It expires in {settings.OTP_TTL_MINUTES} minutes. Do not share it.")
+    delivered = []
+    for channel, target in channels_for(user):
+        try:
+            if channel == 'email':
+                mail.send_email(
+                    target, f"{settings.SCHOOL_NAME}: {subject_part}", body, code=code,
+                    greeting=f"Hello {name},", intro=f"Use this code to {action}:",
+                    note=f"It expires in {settings.OTP_TTL_MINUTES} minutes and works once. "
+                         f"If you did not ask for it, you can ignore this email.")
+                delivered.append({'channel': 'email', 'hint': mask_email(target)})
+            else:
+                sms.send_sms(target, sms_body)
+                delivered.append({'channel': 'sms', 'hint': mask_phone(target)})
+        except (mail.EmailError, sms.SMSError):
+            continue          # try the other channel; the codes are not written to any log
+    if not delivered:
+        raise OTPError('We could not send your code. Please try again later or '
+                       'ask an administrator to check the email and SMS settings.')
     OneTimeCode.objects.filter(user=user, purpose=purpose, used=False).update(used=True)
     OneTimeCode.objects.create(user=user, purpose=purpose, code_hash=make_password(code))
+    return delivered
 
 
 def verify(user, purpose, code):

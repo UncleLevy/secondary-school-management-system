@@ -35,7 +35,7 @@ class LoginOtpTests(APITestCase):
         self.assertEqual(r.status_code, 200)
         self.assertTrue(r.data['otp_required'])
         self.assertNotIn('access', r.data)
-        self.assertEqual(r.data['email_hint'], 'am*@x.com')
+        self.assertEqual(r.data['channels'], [{'channel': 'email', 'hint': 'am*@x.com'}])
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ['amy@x.com'])
 
@@ -119,7 +119,7 @@ class LoginOtpTests(APITestCase):
         self.assertEqual(r.status_code, 503)
         self.assertNotIn('access', r.data)
 
-    @override_settings(OTP_LOGIN_REQUIRED=False)
+    @override_settings(OTP_LOGIN_REQUIRED=False, OTP_LOGIN_ROLES=[])
     def test_flag_off_means_password_only(self):
         r = self.start()
         self.assertIn('access', r.data)
@@ -178,3 +178,128 @@ class PasswordResetTests(APITestCase):
     def test_blank_email_sends_nothing(self):
         self.client.post('/api/auth/forgot-password/', {'email': ''})
         self.assertEqual(len(mail.outbox), 0)
+
+
+
+# ---------------------------------------------------------------- teachers: email + SMS
+from unittest.mock import patch
+from teachers.models import Teacher
+
+AT = dict(SMS_PROVIDER='africastalking', SMS_FALLBACK=False, AT_USERNAME='u', AT_API_KEY='k',
+          TWILIO_ACCOUNT_SID='', TWILIO_AUTH_TOKEN='', TWILIO_FROM_NUMBER='',
+          TWILIO_MESSAGING_SERVICE_SID='', SMS_DEFAULT_COUNTRY_CODE='260')
+
+
+@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+                   OTP_LOGIN_REQUIRED=False, OTP_LOGIN_ROLES=['teacher'], OTP_RESEND_SECONDS=0,
+                   OTP_TTL_MINUTES=10, SCHOOL_NAME='Test School', **AT)
+class TeacherOtpBothChannelsTests(APITestCase):
+    def setUp(self):
+        self.teacher_user = User.objects.create_user('tm', 'tm@x.com', 'S3cure-pass!', role='teacher')
+        self.admin = User.objects.create_user('boss', 'boss@x.com', 'S3cure-pass!', role='admin')
+        Teacher.objects.create(user_email='tm@x.com', full_name='Mr. Banda', phone='0971234567')
+
+    def login(self, username='tm'):
+        return self.client.post('/api/auth/login/', {'username': username, 'password': 'S3cure-pass!'})
+
+    def sms_code(self, send):
+        return re.search(r'\b(\d{6})\b', send.call_args[0][1]).group(1)
+
+    def test_teacher_gets_code_by_email_and_sms(self):
+        with patch('sms.service.send_sms', return_value='ATXid') as send:
+            r = self.login()
+        self.assertNotIn('access', r.data)
+        self.assertTrue(r.data['otp_required'])
+        self.assertEqual({c['channel'] for c in r.data['channels']}, {'email', 'sms'})
+        self.assertEqual(len(mail.outbox), 1)
+        send.assert_called_once()
+        self.assertEqual(send.call_args[0][0], '+260971234567')
+        self.assertEqual(self.sms_code(send), last_code())          # the same code on both
+
+    def test_phone_is_masked_in_response(self):
+        with patch('sms.service.send_sms', return_value='x'):
+            r = self.login()
+        hint = [c for c in r.data['channels'] if c['channel'] == 'sms'][0]['hint']
+        self.assertNotIn('971234', hint)
+        self.assertTrue(hint.endswith('567'))
+
+    def test_code_from_sms_logs_teacher_in(self):
+        with patch('sms.service.send_sms', return_value='x') as send:
+            ch = self.login().data['challenge']
+        r = self.client.post('/api/auth/login/verify/', {'challenge': ch, 'code': self.sms_code(send)})
+        self.assertIn('access', r.data)
+
+    def test_sms_failure_still_works_through_email(self):
+        from sms.service import SMSError
+        with patch('sms.service.send_sms', side_effect=SMSError('gateway down')):
+            r = self.login()
+        self.assertEqual([c['channel'] for c in r.data['channels']], ['email'])
+        ch = r.data['challenge']
+        self.assertEqual(self.client.post('/api/auth/login/verify/',
+                         {'challenge': ch, 'code': last_code()}).status_code, 200)
+
+    def test_email_failure_still_works_through_sms(self):
+        with patch('sms.service.send_sms', return_value='x') as send, \
+             patch('mailer.service.EmailMultiAlternatives.send', side_effect=OSError('smtp')):
+            r = self.login()
+        self.assertEqual([c['channel'] for c in r.data['channels']], ['sms'])
+        self.assertEqual(self.client.post('/api/auth/login/verify/',
+                         {'challenge': r.data['challenge'], 'code': self.sms_code(send)}).status_code, 200)
+
+    def test_both_channels_failing_gives_503_and_no_tokens(self):
+        from sms.service import SMSError
+        with patch('sms.service.send_sms', side_effect=SMSError('x')), \
+             patch('mailer.service.EmailMultiAlternatives.send', side_effect=OSError('y')):
+            r = self.login()
+        self.assertEqual(r.status_code, 503)
+        self.assertNotIn('access', r.data)
+        self.assertFalse(OneTimeCode.objects.exists())
+
+    def test_teacher_without_phone_gets_email_only(self):
+        Teacher.objects.update(phone='')
+        with patch('sms.service.send_sms') as send:
+            r = self.login()
+        send.assert_not_called()
+        self.assertEqual([c['channel'] for c in r.data['channels']], ['email'])
+
+    @override_settings(AT_USERNAME='', AT_API_KEY='')
+    def test_sms_not_configured_means_email_only(self):
+        with patch('sms.service.send_sms') as send:
+            r = self.login()
+        send.assert_not_called()
+        self.assertEqual([c['channel'] for c in r.data['channels']], ['email'])
+
+    def test_admin_is_not_asked_for_a_code_by_default(self):
+        r = self.login('boss')
+        self.assertIn('access', r.data)
+        self.assertEqual(len(mail.outbox), 0)
+
+    @override_settings(OTP_LOGIN_ROLES=['teacher', 'admin'])
+    def test_roles_setting_can_include_admin(self):
+        self.assertTrue(self.login('boss').data['otp_required'])
+
+    def test_resend_goes_to_both_channels_again(self):
+        with patch('sms.service.send_sms', return_value='x') as send:
+            ch = self.login().data['challenge']
+            r = self.client.post('/api/auth/login/resend/', {'challenge': ch})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(send.call_count, 2)
+        self.assertEqual(len(mail.outbox), 2)
+
+    def test_code_is_not_written_to_sms_log(self):
+        from sms.models import SMSLog
+        with patch('sms.service.send_sms', return_value='x'):
+            self.login()
+        self.assertEqual(SMSLog.objects.count(), 0)
+
+    def test_teacher_with_no_email_and_no_phone_skips_code(self):
+        User.objects.create_user('lost', password='S3cure-pass!', role='teacher')
+        self.assertIn('access', self.login('lost').data)
+
+    def test_forgot_password_also_texts_the_teacher(self):
+        with patch('sms.service.send_sms', return_value='x') as send:
+            self.client.post('/api/auth/forgot-password/', {'email': 'tm@x.com'})
+        send.assert_called_once()
+        r = self.client.post('/api/auth/reset-password/', {
+            'email': 'tm@x.com', 'code': self.sms_code(send), 'new_password': 'Brand-new-pass-77!'})
+        self.assertEqual(r.status_code, 200)

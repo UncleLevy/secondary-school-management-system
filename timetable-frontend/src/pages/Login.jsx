@@ -37,7 +37,7 @@ export default function Login() {
                 throw err;
             }
             if (data.otp_required) {
-                setChallenge({ token: data.challenge, hint: data.email_hint });
+                setChallenge({ token: data.challenge, channels: data.channels || [] });
                 setCooldown(60);
             } else {
                 window.location.href = '/';
@@ -54,7 +54,8 @@ export default function Login() {
     };
 
     const resend = () => run(async () => {
-        await auth.resendLoginCode(challenge.token);
+        const data = await auth.resendLoginCode(challenge.token);
+        if (data.channels) setChallenge(c => ({ ...c, channels: data.channels }));
         setNotice('A new code has been sent.');
         setCooldown(60);
     });
@@ -76,9 +77,14 @@ export default function Login() {
                 </form>
             ) : (
                 <form onSubmit={handleCode} className="w-full max-w-sm p-8 space-y-4 shadow bg-card rounded-xl">
-                    <h1 className="text-2xl font-bold">Check your email</h1>
+                    <h1 className="text-2xl font-bold">Enter your code</h1>
                     <p className="text-sm text-muted-foreground">
-                        We sent a 6-digit code to <strong>{challenge.hint}</strong>. Enter it to finish signing in.
+                        We sent a 6-digit code {challenge.channels.map((c, i) => (
+                            <React.Fragment key={c.channel}>
+                                {i > 0 && ' and '}
+                                {c.channel === 'sms' ? 'by SMS to ' : 'by email to '}<strong>{c.hint}</strong>
+                            </React.Fragment>
+                        ))}. Enter it to finish signing in.
                     </p>
                     <Input
                         placeholder="123456" inputMode="numeric" autoComplete="one-time-code" maxLength={6}
