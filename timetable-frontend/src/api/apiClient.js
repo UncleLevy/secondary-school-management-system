@@ -66,6 +66,8 @@ api.interceptors.response.use(
           checkClash: (data) => api.post('/timetable/check-clash/', data).then(r => r.data),
           clashes:    ()     => api.get('/timetable/clashes/').then(r => r.data),
           mySchedule: ()     => api.get('/timetable/my-schedule/').then(r => r.data),
+          publication: ()    => api.get('/timetable/publication/').then(r => r.data),
+          publish:     (data) => api.post('/timetable/publish/', data).then(r => r.data),
       },
       SMS: {
           status:           ()     => api.get('/sms/status/').then(r => r.data),

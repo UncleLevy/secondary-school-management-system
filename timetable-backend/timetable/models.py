@@ -23,3 +23,19 @@ class TimetableSlot(models.Model):
 
     def __str__(self):
         return f"{self.day} P{self.period} — {self.subject} ({self.grade}{self.section})"
+
+
+class TimetablePublication(models.Model):
+    """One 'Publish' action: the moment the timetable was released and teachers were notified."""
+    published_at = models.DateTimeField(auto_now_add=True)
+    published_by = models.ForeignKey('users.User', null=True, blank=True,
+                                     on_delete=models.SET_NULL, related_name='+')
+    slot_count   = models.PositiveIntegerField(default=0)
+    teachers     = models.PositiveIntegerField(default=0)
+    sms_sent     = models.PositiveIntegerField(default=0)
+    sms_failed   = models.PositiveIntegerField(default=0)
+    email_sent   = models.PositiveIntegerField(default=0)
+    email_failed = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['-published_at']
