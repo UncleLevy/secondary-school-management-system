@@ -20,6 +20,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import Loader from "@/components/shared/Loader";
 import EmptyState from "@/components/shared/EmptyState";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import PublishTimetable, { PublicationStatus } from "@/components/timetable/PublishTimetable";
 
 const MAX_LENGTH = 612; // four SMS segments
 const STATUS_COLORS = {
@@ -124,7 +125,8 @@ export default function SMS() {
     <div>
       <PageHeader
         title="Messages"
-        description="Send teachers their timetable, clash alerts and notices by SMS or email"
+        description={<>Send teachers their timetable, clash alerts and notices by SMS or email · <PublicationStatus /></>}
+        actions={<PublishTimetable clashCount={clashCount} slotCount={1} />}
       />
 
       <div className="inline-flex p-1 mb-6 rounded-lg bg-muted" role="tablist" aria-label="Channel">

@@ -14,6 +14,8 @@ import { getErrorMessage } from "@/lib/utils";
 import PageHeader from "@/components/shared/PageHeader";
 import Loader from "@/components/shared/Loader";
 import { SCHOOL_DAYS, PERIODS, GRADES, SECTIONS } from "@/lib/timetable";
+import PublishTimetable, { PublicationStatus } from "@/components/timetable/PublishTimetable";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 const DAYS = SCHOOL_DAYS;
 
@@ -57,6 +59,7 @@ export default function Timetable() {
   const [conflicts, setConflicts] = useState([]);
 
   const queryClient = useQueryClient();
+  const { canManage } = useCurrentUser();
 
   const { data: slots = [], isLoading } = useQuery({
     queryKey: ["timetable"],
@@ -197,7 +200,7 @@ export default function Timetable() {
       <div className="print:hidden">
       <PageHeader
         title="Class Timetable"
-        description={`${slots.length} scheduled slots · ${allConflicts.length > 0 ? `${allConflicts.length} conflict(s) detected` : "No conflicts"}`}
+        description={<>{slots.length} scheduled slots · {allConflicts.length > 0 ? `${allConflicts.length} conflict(s) detected` : "No conflicts"}{canManage && <> · <PublicationStatus /></>}</>}
         actions={
           <div className="flex items-center gap-2">
             {allConflicts.length > 0 && (
@@ -205,6 +208,7 @@ export default function Timetable() {
                 <AlertCircle className="w-3 h-3" /> {allConflicts.length} Conflict{allConflicts.length > 1 ? "s" : ""}
               </Badge>
             )}
+            {canManage && <PublishTimetable clashCount={allConflicts.length} slotCount={slots.length} />}
             <Button variant="outline" onClick={() => window.print()} disabled={viewSlots.length === 0} className="gap-2">
               <Printer className="w-4 h-4" /> Print
             </Button>

@@ -53,11 +53,6 @@ def _tokens(user):
     return {'refresh': str(refresh), 'access': str(refresh.access_token)}
 
 
-def _mask(email):
-    name, _, domain = email.partition('@')
-    return f"{name[:2]}{'*' * max(1, len(name) - 2)}@{domain}"
-
-
 def _user_from_challenge(token):
     try:
         uid = signing.loads(token or '', salt=CHALLENGE_SALT,
@@ -68,24 +63,26 @@ def _user_from_challenge(token):
 
 
 class LoginView(TokenObtainPairView):
-    """Password check; when OTP_LOGIN_REQUIRED is on, also emails a code first."""
+    """Password check. Teachers (and anyone else OTP is required for) must then enter a code
+    that is sent by email and, when a phone number is on file, by SMS."""
 
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
-        if response.status_code != 200 or not settings.OTP_LOGIN_REQUIRED:
+        if response.status_code != 200:
             return response
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.user
-        if not user.email:           # nowhere to send a code: allow password-only sign-in
+        # Skip only when OTP is not needed, or there is nowhere at all to send a code.
+        if not otp.required_for_login(user) or not (user.email or otp.teacher_phone(user)):
             return response
         try:
-            otp.issue(user, 'login')
+            channels = otp.issue(user, 'login')
         except otp.OTPError as exc:
             return Response({'detail': str(exc)}, status=429 if 'wait' in str(exc) else 503)
         return Response({'otp_required': True,
                          'challenge': signing.dumps(user.pk, salt=CHALLENGE_SALT),
-                         'email_hint': _mask(user.email)})
+                         'channels': channels})
 
 
 class LoginVerifyView(APIView):
@@ -110,14 +107,14 @@ class LoginResendView(APIView):
 
     def post(self, request):
         user = _user_from_challenge(request.data.get('challenge'))
-        if user is None or not user.email:
+        if user is None:
             return Response({'detail': 'Your sign-in session expired. Please sign in again.'},
                             status=400)
         try:
-            otp.issue(user, 'login')
+            channels = otp.issue(user, 'login')
         except otp.OTPError as exc:
             return Response({'detail': str(exc)}, status=429 if 'wait' in str(exc) else 503)
-        return Response({'detail': 'A new code has been sent.', 'email_hint': _mask(user.email)})
+        return Response({'detail': 'A new code has been sent.', 'channels': channels})
 
 
 # ---------------------------------------------------------------- forgot password

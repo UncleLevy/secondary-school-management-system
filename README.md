@@ -15,9 +15,10 @@ A web app for building and managing a secondary school timetable, spotting clash
 | Teachers | Teacher records with subjects and phone; teacher dropdown filtered by subject; login accounts for teachers |
 | Dashboards | Separate Admin/Management and Teacher dashboards; teachers see only their own schedule |
 | Notifications | In-app bell and banners |
+| Publish | The **Publish** button (Timetable and Messages pages) releases the timetable and automatically sends every active teacher their week by SMS and email. If clashes remain you are warned and must choose "Publish anyway". The last publish time is shown. Sending a single day or a custom message by hand is still available on the Messages page |
 | Messages (SMS) | Custom message, a day's timetable, or clash alerts. Africa's Talking by default, Twilio as automatic fallback |
 | Messages (Email) | Same three actions by email, using each teacher's email address. Emails are branded HTML (school name and logo in the header) with a plain-text version |
-| One-time codes (OTP) | Emailed 6-digit codes for forgot-password, and optionally as a second step at sign-in |
+| One-time codes (OTP) | Teachers must enter a 6-digit code after their password at every sign-in. It is sent by email and also by SMS when the teacher has a phone number. Also used for forgot-password |
 
 Roles: `admin`, `management` (can send messages), `teacher` (own schedule only).
 
@@ -62,7 +63,8 @@ Never commit this file. All keys are optional; the app runs without SMS or SMTP.
 | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USE_TLS`, `EMAIL_BACKEND` | `smtp.gmail.com`, `587`, `true`, auto | Only change these to use a provider other than Gmail |
 | `SCHOOL_NAME` | `School Timetable` | Shown in email subjects and bodies |
 | `EMAIL_LOGO_PATH` | built-in icon | Full path to your own school logo (PNG, about 96x96) shown in the email header |
-| `OTP_LOGIN_REQUIRED` | `false` | `true` asks for an emailed code after the password at every sign-in. Users with no email address skip it |
+| `OTP_LOGIN_ROLES` | `teacher` | Roles that always need a code at sign-in (comma separated: `teacher`, `management`, `admin`) |
+| `OTP_LOGIN_REQUIRED` | `false` | `true` asks every role for a code. Users with no email address and no phone skip it |
 | `OTP_TTL_MINUTES`, `OTP_RESEND_SECONDS` | `10`, `60` | Code lifetime and resend wait |
 
 ### SMS delivery order
@@ -83,7 +85,9 @@ Never commit this file. All keys are optional; the app runs without SMS or SMTP.
 
 - 6 digits, stored hashed, expire after `OTP_TTL_MINUTES`, usable once, 5 wrong attempts then locked, a new code replaces the old one, resend wait of `OTP_RESEND_SECONDS`.
 - Forgot-password gives the same reply whether or not the email exists.
-- Codes need working email. With the default console backend they appear in the backend terminal.
+- A code is sent by every channel available: email, and SMS for a teacher whose record (matched by email) has a phone number while SMS is set up. The same code is sent on both; either works. If one channel fails the other still delivers; if both fail the sign-in is refused with a message.
+- Codes are never written to the SMS or email history.
+- Without working email or SMS, teachers cannot sign in. With the default console backend the code only appears in the backend terminal, so set up Gmail (and SMS) before teachers start using the system.
 
 ## API summary
 
@@ -97,6 +101,7 @@ All endpoints are under `/api/`. Everything except the public auth routes needs 
 | `POST auth/forgot-password/`, `POST auth/reset-password/` | Public. Reset takes `{email, code, new_password}` |
 | `POST auth/refresh/`, `GET auth/me/`, `POST auth/change-password/` | Signed-in users |
 | `teachers/`, `class-assignments/`, `timetable/` | CRUD (timetable also has `check-clash/`, `clashes/`, `my-schedule/`) |
+| `timetable/publish/`, `timetable/publication/` | Admin/management: publish and notify all teachers (`{allow_clashes}` to publish despite clashes; 409 otherwise). Any signed-in user can read the last publication |
 | `sms/` and `email/` | Admin/management only. `status/`, `send/`, `send-timetable/`, `send-clash-alerts/`; `GET` lists history |
 
 ## Clash rules

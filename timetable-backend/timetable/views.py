@@ -2,10 +2,11 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from users.permissions import IsAdminOrReadOnly
+from users.permissions import IsAdminOrManagement, IsAdminOrReadOnly
 from .clashes import all_clashes, describe, find_clashes
 from teachers.models import Teacher
-from .models import TimetableSlot
+from .models import TimetablePublication, TimetableSlot
+from . import publish as publishing
 from .serializers import ClashCheckSerializer, TimetableSlotSerializer
 
 class TimetableSlotViewSet(viewsets.ModelViewSet):
@@ -35,6 +36,25 @@ class TimetableSlotViewSet(viewsets.ModelViewSet):
         """Every clash currently in the saved timetable."""
         clashes = all_clashes()
         return Response({'count': len(clashes), 'clashes': clashes})
+
+    @action(detail=False, methods=['get'], url_path='publication',
+            permission_classes=[IsAuthenticated])
+    def publication(self, request):
+        """When the timetable was last published (any signed-in user may see this)."""
+        return Response(publishing.serialize(TimetablePublication.objects.first()))
+
+    @action(detail=False, methods=['post'], url_path='publish',
+            permission_classes=[IsAdminOrManagement])
+    def publish(self, request):
+        """Release the timetable and automatically SMS and email every active teacher."""
+        allow = str(request.data.get('allow_clashes', '')).lower() in ('1', 'true', 'yes')
+        try:
+            record, report = publishing.publish(request, allow_clashes=allow)
+        except publishing.ClashesPresent as exc:
+            return Response({'detail': f'The timetable still has {exc.count} clash(es). '
+                                       'Fix them, or publish anyway.',
+                             'clash_count': exc.count}, status=409)
+        return Response({**publishing.serialize(record), **report})
 
     @action(detail=False, methods=['get'], url_path='my-schedule',
             permission_classes=[IsAuthenticated])
